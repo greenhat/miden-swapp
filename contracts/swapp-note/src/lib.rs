@@ -5,6 +5,7 @@
 #[macro_use]
 extern crate alloc;
 
+use alloc::vec::Vec;
 use miden::*;
 
 /// Swapp Note Script
@@ -153,12 +154,29 @@ fn run(arg: Word) {
         let remainder_offered_asset =
             Asset::from([inputs[4], inputs[5], inputs[6], inputs[7] - offered_out]);
 
+        let padded_inputs = vec![
+            remainder_requested_asset.inner[0],
+            remainder_requested_asset.inner[1],
+            remainder_requested_asset.inner[2],
+            remainder_requested_asset.inner[3],
+            remainder_offered_asset.inner[0],
+            remainder_offered_asset.inner[1],
+            remainder_offered_asset.inner[2],
+            remainder_offered_asset.inner[3],
+            swapp_note_creator_id.prefix,
+            swapp_note_creator_id.suffix,
+            felt!(0),
+            felt!(0),
+            felt!(0),
+            felt!(0),
+            felt!(0),
+            felt!(0),
+        ];
         create_swapp_note(
             remainder_serial,
-            remainder_requested_asset,
-            remainder_offered_asset,
-            swapp_note_creator_id,
             remainder_aux,
+            remainder_requested_asset,
+            padded_inputs,
         );
     }
 }
@@ -237,13 +255,7 @@ fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountI
     output_note::add_asset(input_asset, note_idx);
 }
 /// Create a Swapp note with remainder parameters
-fn create_swapp_note(
-    serial_num: Word,
-    offered_asset: Asset,
-    requested_asset: Asset,
-    note_creator_id: AccountId,
-    aux: Felt,
-) {
+fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: Asset, padded_inputs: Vec<Felt>) {
     // Create a same tag as the active note
     let tag = get_note_tag();
 
@@ -257,26 +269,10 @@ fn create_swapp_note(
     let recipient = Recipient::compute(
         serial_num,
         Digest::from_word(active_note::get_script_root()),
-        vec![
-            offered_asset.inner[0],
-            offered_asset.inner[1],
-            offered_asset.inner[2],
-            offered_asset.inner[3],
-            requested_asset.inner[0],
-            requested_asset.inner[1],
-            requested_asset.inner[2],
-            requested_asset.inner[3],
-            note_creator_id.prefix,
-            note_creator_id.suffix,
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-        ],
+        padded_inputs,
     );
 
+    let aux = felt!(1);
     // Create the note using output_note::create
     let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
 
