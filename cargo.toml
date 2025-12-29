@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "contracts/swapp-note"
+    "contracts/swapp-note",
+    "integration"
 ]
 resolver = "2"
 edition = "2021"

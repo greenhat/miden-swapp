@@ -10,15 +10,14 @@ use miden::*;
 
 /// Swapp Note Script
 ///
-/// Implements a partially-fillable limit order for DEX functionality.
-/// Based on the Miden SDK: https://docs.rs/miden/latest/miden/
+/// Implements a partially-fillable swap note for DEX functionality.
 ///
 /// **Note Arg (via `arg` parameter - provided by note consumer):**
-/// - Position 0: inflight: bool (1 Felt value: 0 or 1)
-/// - Position 1: input_amount: Felt (single Felt value for amount)
-/// - Position 2: reserved (unused)
-/// - Position 3: reserved (unused)
-/// arg structure: [inflight, amount, reserved, reserved]
+/// - Position 0: input_amount: Felt (single Felt value for amount)
+/// - Position 1: 0: Felt (unused)
+/// - Position 2: 0: Felt (unused)
+/// - Position 3: 0: Felt (unused)
+/// arg structure: [input_amount, 0, 0, 0]
 ///
 /// **Note Inputs (via `active_note::get_inputs()` - stored when note is created):**
 /// - Positions 0-3: Requested Asset Word (4 Felts)
@@ -26,25 +25,19 @@ use miden::*;
 ///   - inputs[1]: requested_asset_id_suffix (Felt)
 ///   - inputs[2]: padding (0, Felt)
 ///   - inputs[3]: requested_asset_total (Felt)
-/// - Positions 4-7: Offered Asset Word (4 Felts)
-///   - inputs[4]: offered_asset_id_prefix (Felt)
-///   - inputs[5]: offered_asset_id_suffix (Felt)
+/// - Positions 4-7: Note Creator AccountId (4 Felts)
+///   - inputs[4]: note_creator_account_id_prefix (Felt)
+///   - inputs[5]: note_creator_account_id_suffix (Felt)
 ///   - inputs[6]: padding (0, Felt)
-///   - inputs[7]: offered_asset_total (Felt)
-/// - Positions 8-11: Note Creator AccountId (4 Felts)
-///   - inputs[8]: note_creator_account_id_prefix (Felt)
-///   - inputs[9]: note_creator_account_id_suffix (Felt)
-///   - inputs[10]: padding (0, Felt)
-///   - inputs[11]: padding (0, Felt)
+///   - inputs[7]: padding (0, Felt)
 #[note_script]
 fn run(arg: Word) {
     // Get stored note inputs
     let inputs = active_note::get_inputs();
 
-    // Step 1: Get executing account ID
-    // The note is consumed by the executing account, which is implicitly the recipient
+    // Get executing account ID (the note consumer)
     let executing_account_id = active_account::get_id();
-    let swapp_note_creator_id = AccountId::from(inputs[8], inputs[9]);
+    let swapp_note_creator_id = AccountId::from(inputs[4], inputs[5]);
 
     if swapp_note_creator_id == executing_account_id {
         // Note creator is consuming their own note - receive assets back
@@ -53,35 +46,10 @@ fn run(arg: Word) {
         return;
     }
 
-    // Step 2: Extract input_amount and inflight from note arg
-    // These are provided by the note consumer when executing the note
-    // arg structure: [inflight, amount, reserved, reserved]
-    let inflight_val = arg[0];
-    let input_amount = arg[1];
-    let inflight = inflight_val != felt!(0);
+    // Extract input_amount from note arg (provided by note consumer)
+    let input_amount = arg[0];
 
-    // Step 3: Extract Asset Words from note inputs (stored when note was created)
-    // Each Asset Word = 4 Felts: [asset_id_prefix, asset_id_suffix, 0, amount]
-
-    // Create Asset Words directly from inputs
-    // Requested Asset Word (positions 0-3)
-    let _requested_asset_word = Asset::from([
-        inputs[0], // Felt[0] - requested_asset_id_prefix
-        inputs[1], // Felt[1] - requested_asset_id_suffix
-        inputs[2], // Felt[2] - padding (should be 0)
-        inputs[3], // Felt[3] - requested_asset_total
-    ]);
-
-    // Offered Asset Word (positions 4-7)
-    let offered_asset_word = Asset::from([
-        inputs[4], // Felt[0] - offered_asset_id_prefix
-        inputs[5], // Felt[1] - offered_asset_id_suffix
-        inputs[6], // Felt[2] - padding (should be 0)
-        inputs[7], // Felt[3] - offered_asset_total
-    ]);
-
-    // Step 3.5: Validate that offered_asset_word matches the asset in the active note
-    // Get assets from the active note
+    // Validate that offered_asset_word matches the asset in the active note
     let note_assets = active_note::get_assets();
 
     // Check that there is exactly one asset in the note
@@ -89,52 +57,51 @@ fn run(arg: Word) {
     assert_eq(Felt::from_u32(num_assets as u32), felt!(1));
 
     // Get the asset from the note
-    let note_asset = note_assets[0];
-
-    // Compare the offered asset from inputs with the asset in the note
-    // They should match exactly (same asset ID and amount)
-    let assets_match = if offered_asset_word == note_asset {
-        felt!(1)
-    } else {
-        felt!(0)
-    };
-    assert_eq(assets_match, felt!(1));
+    let offered_asset = note_assets[0];
 
     // Extract amounts for calculations
     let requested_asset_total = inputs[3];
-    let offered_asset_total = inputs[7];
+    let offered_asset_total = offered_asset.inner[3];
 
-    // Note: note_serial_number is NOT in inputs - it's part of the note's structure
-    // Get it using active_note::get_serial_number()
+    // Get the current note serial number
     let current_note_serial = active_note::get_serial_number();
 
-    // Step 4: Validate input
-    // If input_amount > requested_asset_total: FAIL
-    let is_valid = if input_amount <= requested_asset_total {
+    // Validate input: input_amount must not exceed requested_asset_total
+    let is_valid = if input_amount.as_u64() <= requested_asset_total.as_u64() {
         felt!(1)
     } else {
         felt!(0)
     };
     assert_eq(is_valid, felt!(1));
 
-    // Step 5: Compute execution ratios
-    // execution_ratio = input_amount / requested_asset_total
-    // remainder_ratio = 1 - execution_ratio
-    let one = felt!(1);
-    // Step 6: Compute offered output
-    // offered_out = offered_asset_total * execution_ratio
+    //Remove later: For testing purposes
+
+    assert_eq(input_amount, Felt::new(0).unwrap());
+    //assert_eq(requested_asset_total, Felt::new(25).unwrap());
+    //assert_eq(offered_asset.inner[1], Felt::new(0).unwrap());
+    //assert_eq(offered_asset.inner[2], Felt::new(0).unwrap());
+    //assert_eq(offered_asset.inner[3], Felt::new(0).unwrap());
+
+    // Compute offered output amount proportional to input
     let offered_out =
         calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
 
+    assert_eq(offered_out, felt!(0));
+
+    //Remove later: For testing purposes
+    active_note::add_assets_to_account();
+    return;
+
     active_note::add_assets_to_account();
 
-    // Create routing (P2ID) note
+    // Create routing (P2ID) note, this is the note that will be used to route the requested asset to the note creator
     let routing_serial = add_word(
         current_note_serial,
         Word::from([felt!(0), felt!(0), felt!(0), felt!(1)]),
     );
 
-    let aux_value = offered_out;
+    // aux value is the input amount so that the swapp note creator can determine build the note
+    let aux_value = input_amount;
     let input_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], input_amount]));
 
     // Create P2ID note using output_note module
@@ -145,33 +112,33 @@ fn run(arg: Word) {
         aux_value,
     );
 
-    // Create remainder swap note if partial fill
+    active_note::add_assets_to_account();
+    return;
+
+    // Create remainder swap note in case of partial fill
     if offered_out < offered_asset_total {
         let remainder_serial = hash_words(&[current_note_serial]).inner;
         let remainder_aux = offered_out;
         let remainder_requested_asset =
             Asset::from([inputs[0], inputs[1], inputs[2], inputs[3] - input_amount]);
-        let remainder_offered_asset =
-            Asset::from([inputs[4], inputs[5], inputs[6], inputs[7] - offered_out]);
+        let remainder_offered_asset = Asset::new([
+            offered_asset.inner[0],
+            offered_asset.inner[1],
+            offered_asset.inner[2],
+            offered_asset.inner[3] - offered_out,
+        ]);
 
         let padded_inputs = vec![
             remainder_requested_asset.inner[0],
             remainder_requested_asset.inner[1],
             remainder_requested_asset.inner[2],
             remainder_requested_asset.inner[3],
-            remainder_offered_asset.inner[0],
-            remainder_offered_asset.inner[1],
-            remainder_offered_asset.inner[2],
-            remainder_offered_asset.inner[3],
             swapp_note_creator_id.prefix,
             swapp_note_creator_id.suffix,
             felt!(0),
             felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
         ];
+
         create_swapp_note(
             remainder_serial,
             remainder_aux,
@@ -203,7 +170,7 @@ fn calculate_output_amount(offered_total: Felt, requested_total: Felt, input_amo
         // Case 2: offered_total <= requested_total
         // Direct calculation: (input_amount * offered_total * factor) / (requested_total * factor)
         let ratio = (requested_total * precision_factor) / offered_total;
-        return (input_amount * ratio) / precision_factor;
+        return (input_amount * precision_factor) / ratio;
     }
 }
 
@@ -235,7 +202,7 @@ fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountI
     // This is a placeholder - actual implementation needs proper P2ID recipient creation
     let recipient = Recipient::compute(
         serial_num,
-        Digest::from_word(active_note::get_script_root()),
+        p2id_note_root_digest,
         vec![
             recipient_id.prefix,
             recipient_id.suffix,
@@ -272,7 +239,6 @@ fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: Asset, padded_i
         padded_inputs,
     );
 
-    let aux = felt!(1);
     // Create the note using output_note::create
     let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
 
