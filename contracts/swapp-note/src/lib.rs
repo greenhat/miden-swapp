@@ -30,6 +30,8 @@ use miden::*;
 ///   - inputs[5]: note_creator_account_id_suffix (Felt)
 ///   - inputs[6]: padding (0, Felt)
 ///   - inputs[7]: padding (0, Felt)
+///
+///
 #[note_script]
 fn run(arg: Word) {
     // Get stored note inputs
@@ -61,43 +63,31 @@ fn run(arg: Word) {
 
     // Extract amounts for calculations
     let requested_asset_total = inputs[3];
-    let offered_asset_total = offered_asset.inner[3];
+    let offered_asset_total = offered_asset.inner[0];
 
     // Get the current note serial number
     let current_note_serial = active_note::get_serial_number();
 
     // Validate input: input_amount must not exceed requested_asset_total
-    let is_valid = if input_amount.as_u64() <= requested_asset_total.as_u64() {
+    let is_valid = if input_amount <= requested_asset_total {
         felt!(1)
     } else {
         felt!(0)
     };
     assert_eq(is_valid, felt!(1));
 
-    //Remove later: For testing purposes
-
-    assert_eq(input_amount, Felt::new(0).unwrap());
-    //assert_eq(requested_asset_total, Felt::new(25).unwrap());
-    //assert_eq(offered_asset.inner[1], Felt::new(0).unwrap());
-    //assert_eq(offered_asset.inner[2], Felt::new(0).unwrap());
-    //assert_eq(offered_asset.inner[3], Felt::new(0).unwrap());
-
     // Compute offered output amount proportional to input
     let offered_out =
         calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
 
-    assert_eq(offered_out, felt!(0));
-
-    //Remove later: For testing purposes
     active_note::add_assets_to_account();
-    return;
 
-    active_note::add_assets_to_account();
+    assert_eq!(current_note_serial.inner.3, felt!(0));
 
     // Create routing (P2ID) note, this is the note that will be used to route the requested asset to the note creator
     let routing_serial = add_word(
         current_note_serial,
-        Word::from([felt!(0), felt!(0), felt!(0), felt!(1)]),
+        Word::from([felt!(1), felt!(1), felt!(1), felt!(1)]),
     );
 
     // aux value is the input amount so that the swapp note creator can determine build the note
@@ -111,9 +101,6 @@ fn run(arg: Word) {
         swapp_note_creator_id,
         aux_value,
     );
-
-    active_note::add_assets_to_account();
-    return;
 
     // Create remainder swap note in case of partial fill
     if offered_out < offered_asset_total {
@@ -181,31 +168,31 @@ fn add_word(a: Word, b: Word) -> Word {
 
 /// Create a P2ID (Pay-to-ID) note
 fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountId, aux: Felt) {
-    // Create a tag for the P2ID note
-    let tag = Tag::from(felt!(0));
+    // Create a tag for the P2ID note - LocalAny with payload 0
+    // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
+    let tag = Tag::from(Felt::from_u32(0xC0000000));
 
     // Create a same note type as the active note
-    let note_type = get_note_type();
+    //let note_type = get_note_type();
+    let note_type = NoteType::from(felt!(1));
 
     // Set execution hint (always executable for now)
     let execution_hint = felt!(0);
 
     let p2id_note_root_digest = Digest::from_word(Word::new([
-        Felt::from_u64_unchecked(6412241294473976817),
-        Felt::from_u64_unchecked(10671567784403105513),
-        Felt::from_u64_unchecked(4275774806771663409),
-        Felt::from_u64_unchecked(17933276983439992403),
+        Felt::from_u64_unchecked(15783632360113277539),
+        Felt::from_u64_unchecked(7403765918285273520),
+        Felt::from_u64_unchecked(15691985194755641846),
+        Felt::from_u64_unchecked(10399643920503194563),
     ]));
 
     // Create recipient from serial number and account ID
-    // TODO: Create proper P2ID recipient with serial, script, and inputs
-    // This is a placeholder - actual implementation needs proper P2ID recipient creation
     let recipient = Recipient::compute(
         serial_num,
         p2id_note_root_digest,
         vec![
-            recipient_id.prefix,
             recipient_id.suffix,
+            recipient_id.prefix,
             felt!(0),
             felt!(0),
             felt!(0),
@@ -213,6 +200,23 @@ fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountI
             felt!(0),
             felt!(0),
         ],
+    );
+
+    assert_eq!(
+        recipient.inner[0],
+        Felt::from_u64_unchecked(4680597347679157214)
+    );
+    assert_eq!(
+        recipient.inner[1],
+        Felt::from_u64_unchecked(1254494794927659471)
+    );
+    assert_eq!(
+        recipient.inner[2],
+        Felt::from_u64_unchecked(15467102009091135960)
+    );
+    assert_eq!(
+        recipient.inner[3],
+        Felt::from_u64_unchecked(11428255931367355774)
     );
 
     // Create the note using output_note::create
@@ -259,10 +263,11 @@ fn get_note_type() -> NoteType {
     let metadata = active_note::get_metadata();
     // 2nd felt: [sender_id_suffix (56 bits) | note_type (2 bits) | note_execution_hint_tag (6 bits)]
     // Extract note_type: shift right by 6 bits (to skip note_execution_hint_tag), then mask with 0b11 (2 bits)
-    let second_felt = metadata[1];
+    let second_felt = metadata[2];
+
     // Shift left by 56 bits
-    let left_shifted_56 = second_felt * Felt::from_u32(2u32.pow(56));
+    let left_shifted_56 = second_felt * Felt::from_u64_unchecked(2u64.pow(56));
     // Shift right by 62
-    let note_type_felt = left_shifted_56 / Felt::from_u32(2u32.pow(62));
+    let note_type_felt = left_shifted_56 / Felt::from_u64_unchecked(2u64.pow(62));
     NoteType::from(note_type_felt)
 }

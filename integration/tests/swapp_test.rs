@@ -1,9 +1,16 @@
+use anyhow::Ok;
 use integration::helpers::{
     build_project_in_dir, create_testing_note_from_package, NoteCreationConfig,
 };
 
-use miden_client::{note::NoteAssets, transaction::OutputNote, Felt, Word};
+use miden_client::{
+    note::{Note, NoteAssets, NoteExecutionHint, NoteMetadata, NoteTag, NoteType},
+    transaction::OutputNote,
+    Felt, Word,
+};
+use miden_core::crypto::hash::Rpo256;
 use miden_core::FieldElement;
+use miden_lib::note::{utils::build_p2id_recipient, WellKnownNote};
 use miden_objects::asset::{Asset, FungibleAsset};
 use miden_testing::{Auth, MockChain};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -45,13 +52,13 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     )?;
     println!("Bob: {:?} (has 25 ETH)", bob.id());
 
-    // STEP 3: Build swapp-note contract
+    // STEP 3: Build swapp-note and p2id-note contracts
     println!("\nBuilding swapp-note contract...");
     let swapp_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/swapp-note"),
         true,
     )?);
-    println!("Contract built successfully");
+    println!("Swapp note contract built successfully.");
 
     // STEP 4: Create swap note with proper structure
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
@@ -94,18 +101,95 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     // Bob consumes the swap note with full fill (25 ETH)
     println!("\nBob consuming swap note (providing 25 ETH - full fill)...");
     let note_args = Word::from([
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::ZERO,
         Felt::new(25), // input_amount = 25 (full fill)
-        Felt::ZERO,
-        Felt::ZERO,
-        Felt::ZERO,
     ]);
 
     let mut note_args_map = BTreeMap::new();
     note_args_map.insert(swap_note.id(), note_args);
 
+    // Create the expected P2ID note that will be created by the swap script
+    // This note will contain 25 ETH and be sent to Alice
+    println!("\nCreating expected P2ID note for Alice (25 ETH)...");
+
+    let serial_num = Word::from([
+        swap_note.recipient().serial_num()[0] + Felt::new(1),
+        swap_note.recipient().serial_num()[1] + Felt::new(1),
+        swap_note.recipient().serial_num()[2] + Felt::new(1),
+        swap_note.recipient().serial_num()[3] + Felt::new(1),
+    ]);
+
+    println!(
+        "Current note serial: {:?}",
+        swap_note.recipient().serial_num()
+    );
+    println!("Serial num: {:?}", serial_num);
+    let recipient = build_p2id_recipient(alice.id(), serial_num)?;
+
+    // Prepare the advice map for the P2ID note
+    // The key is the hash of the note creation parameters, and the value contains the full parameters
+    let tag = NoteTag::LocalAny(3221225472);
+    let aux = Felt::new(25);
+    let note_type = NoteType::Public;
+    let execution_hint = NoteExecutionHint::none();
+
+    // Build the input vector for the advice map (must be word-aligned)
+    let mut input: Vec<Felt> = vec![tag.into(), aux, note_type.into(), execution_hint.into()];
+
+    // Add recipient digest (4 Felts)
+    let recipient_digest: [Felt; 4] = recipient.digest().into();
+    input.extend(recipient_digest);
+
+    println!("Recipient Digest: {:?}", recipient_digest);
+
+    // Add the asset (4 Felts = 1 Word)
+    let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
+    let asset_word: Word = asset.into();
+    input.extend(asset_word);
+
+    assert_eq!(input.len() % 4, 0, "input needs to be word-aligned");
+
+    // Hash the input to create the commitment (this is the lookup key)
+    let commitment: [Felt; 4] = miden_core::crypto::hash::Rpo256::hash_elements(&input).into();
+
+    assert_eq!(input.len() % 4, 0, "input needs to be word-aligned");
+
+    let recipient_digest_word = Word::from(recipient_digest);
+
+    println!("Recipient digest hex: {:?}", recipient_digest_word.to_hex());
+    println!("Commitment: {:?}", commitment);
+    println!("Input: {:?}", input);
+
+    println!("\n=== P2ID Note Script Root ===");
+    println!(
+        "Note script_root[0]: {:?}",
+        WellKnownNote::P2ID.script_root()[0]
+    );
+    println!(
+        "Note script_root[1]: {:?}",
+        WellKnownNote::P2ID.script_root()[1]
+    );
+    println!(
+        "Note script_root[2]: {:?}",
+        WellKnownNote::P2ID.script_root()[2]
+    );
+    println!(
+        "Note script_root[3]: {:?}",
+        WellKnownNote::P2ID.script_root()[3]
+    );
+
+    println!("Recipient Values : {:?}", recipient.inputs().values());
+
+    // // Create the advice map: commitment -> input data
+    let mut advice_map = BTreeMap::new();
+    advice_map.insert(commitment.into(), input.clone());
+
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
+        .extend_advice_map(advice_map)
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
@@ -169,6 +253,17 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     //     "Bob should receive USDC"
     // );
     // assert_eq!(usdc_received.amount(), 50, "Bob should receive 50 USDC");
+
+    // let eth_spent = match removed_assets[0] {
+    //     Asset::Fungible(f) => f,
+    //     _ => panic!("Expected fungible ETH asset"),
+    // };
+    // assert_eq!(
+    //     eth_spent.faucet_id(),
+    //     eth_faucet.id(),
+    //     "Bob should spend ETH"
+    // );
+    // assert_eq!(eth_spent.amount(), 25, "Bob should spend 25 ETH");
     // println!("✓ Bob's vault delta verified: +50 USDC, -25 ETH");
 
     // println!("\n✅ Full-fill swap test passed!");
