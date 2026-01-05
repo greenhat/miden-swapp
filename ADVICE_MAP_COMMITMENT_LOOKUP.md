@@ -115,3 +115,5 @@ The primary location where the advice map is checked using a commitment is:
 
 These procedures compute or receive a commitment hash, then use it as a key to retrieve the corresponding data from the advice map.
 
+
+

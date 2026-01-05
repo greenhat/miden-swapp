@@ -8,7 +8,6 @@ use miden_client::{
     transaction::OutputNote,
     Felt, Word,
 };
-use miden_core::crypto::hash::Rpo256;
 use miden_core::FieldElement;
 use miden_lib::note::{utils::build_p2id_recipient, WellKnownNote};
 use miden_objects::asset::{Asset, FungibleAsset};
@@ -29,6 +28,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         Some(150), // total_issuance (50 for note + 100 for Bob)
     )?;
     println!("USDC Faucet: {:?}", usdc_faucet.id());
+    println!("  Version: {:?}", usdc_faucet.id().version());
 
     let eth_faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth,
@@ -37,6 +37,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         Some(25), // total_issuance (25 for Alice's request)
     )?;
     println!("ETH Faucet: {:?}", eth_faucet.id());
+    println!("  Version: {:?}", eth_faucet.id().version());
 
     // STEP 2: Create wallets with initial assets
     println!("\nCreating Alice and Bob wallets with initial assets...");
@@ -45,12 +46,14 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         [FungibleAsset::new(usdc_faucet.id(), 50)?.into()], // Alice has 50 USDC to offer
     )?;
     println!("Alice: {:?} (has 50 USDC)", alice.id());
+    println!("  Version: {:?}", alice.id().version());
 
     let bob = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth,
         [FungibleAsset::new(eth_faucet.id(), 25)?.into()], // Bob has 25 ETH to provide
     )?;
     println!("Bob: {:?} (has 25 ETH)", bob.id());
+    println!("  Version: {:?}", bob.id().version());
 
     // STEP 3: Build swapp-note and p2id-note contracts
     println!("\nBuilding swapp-note contract...");
@@ -149,6 +152,8 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let asset_word: Word = asset.into();
     input.extend(asset_word);
 
+    let note_assets = NoteAssets::new(vec![asset.into()])?;
+
     assert_eq!(input.len() % 4, 0, "input needs to be word-aligned");
 
     // Hash the input to create the commitment (this is the lookup key)
@@ -186,9 +191,14 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let mut advice_map = BTreeMap::new();
     advice_map.insert(commitment.into(), input.clone());
 
+    let note_metadata = NoteMetadata::new(bob.id(), NoteType::Public, tag, execution_hint, aux)?;
+
+    let p2id_note = Note::new(note_assets, note_metadata, recipient);
+
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
+        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.into())])
         .extend_advice_map(advice_map)
         .build()?;
 

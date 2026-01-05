@@ -102,6 +102,8 @@ fn run(arg: Word) {
         aux_value,
     );
 
+    return;
+
     // Create remainder swap note in case of partial fill
     if offered_out < offered_asset_total {
         let remainder_serial = hash_words(&[current_note_serial]).inner;
