@@ -224,8 +224,10 @@ fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountI
     // Create the note using output_note::create
     let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
 
+    let input_asset_reversed = Asset::new(input_asset.inner.reverse());
+
     // Add the asset to the note
-    output_note::add_asset(input_asset, note_idx);
+    output_note::add_asset(input_asset_reversed, note_idx);
 }
 /// Create a Swapp note with remainder parameters
 fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: Asset, padded_inputs: Vec<Felt>) {
