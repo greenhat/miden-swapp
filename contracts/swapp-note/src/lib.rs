@@ -5,6 +5,7 @@
 #[macro_use]
 extern crate alloc;
 
+use crate::bindings::Account;
 use alloc::vec::Vec;
 use miden::*;
 
@@ -33,7 +34,7 @@ use miden::*;
 ///
 ///
 #[note_script]
-fn run(arg: Word) {
+fn run(arg: Word, account: &mut Account) {
     // Get stored note inputs
     let inputs = active_note::get_inputs();
 
@@ -69,12 +70,16 @@ fn run(arg: Word) {
     let current_note_serial = active_note::get_serial_number();
 
     // Validate input: input_amount must not exceed requested_asset_total
-    let is_valid = if input_amount <= requested_asset_total {
+    let is_valid = if input_amount.as_u64() <= requested_asset_total.as_u64() {
         felt!(1)
     } else {
         felt!(0)
     };
+
     assert_eq(is_valid, felt!(1));
+
+    // active_note::add_assets_to_account();
+    // return;
 
     // Compute offered output amount proportional to input
     let offered_out =
@@ -100,22 +105,27 @@ fn run(arg: Word) {
         input_asset,
         swapp_note_creator_id,
         aux_value,
+        account,
     );
 
-    return;
-
     // Create remainder swap note in case of partial fill
-    if offered_out < offered_asset_total {
+    if offered_out.as_u64() < offered_asset_total.as_u64() {
+        // assert_eq(felt!(0), felt!(1));
         let remainder_serial = hash_words(&[current_note_serial]).inner;
         let remainder_aux = offered_out;
+        let requested_asset_total = inputs[3] - input_amount;
+        //assert_eq(requested_asset_total, felt!(10));
         let remainder_requested_asset =
-            Asset::from([inputs[0], inputs[1], inputs[2], inputs[3] - input_amount]);
-        let remainder_offered_asset = Asset::new([
-            offered_asset.inner[0],
-            offered_asset.inner[1],
+            Asset::from([inputs[0], inputs[1], inputs[2], requested_asset_total]);
+
+        let remainder_offered_asset_total = offered_asset_total - offered_out;
+        // assert_eq(remainder_offered_asset_total, felt!(20));
+        let remainder_offered_asset = Asset::new(Word::from([
+            offered_asset.inner[3],
             offered_asset.inner[2],
-            offered_asset.inner[3] - offered_out,
-        ]);
+            offered_asset.inner[1],
+            remainder_offered_asset_total,
+        ]));
 
         let padded_inputs = vec![
             remainder_requested_asset.inner[0],
@@ -131,9 +141,11 @@ fn run(arg: Word) {
         create_swapp_note(
             remainder_serial,
             remainder_aux,
-            remainder_requested_asset,
+            remainder_offered_asset,
             padded_inputs,
+            account,
         );
+        //assert_eq(felt!(0), felt!(1));
     }
 }
 
@@ -149,7 +161,7 @@ fn calculate_output_amount(offered_total: Felt, requested_total: Felt, input_amo
     let precision_factor = Felt::from_u32(100000);
 
     // For the better precision, we use the two different paths for the calculation
-    if offered_total > requested_total {
+    if offered_total.as_u64() > requested_total.as_u64() {
         // Case 1: offered_total > requested_total
         // Calculate ratio = (offered_total * factor) / requested_total
         // Then output = (input_amount * ratio) / factor
@@ -169,7 +181,13 @@ fn add_word(a: Word, b: Word) -> Word {
 }
 
 /// Create a P2ID (Pay-to-ID) note
-fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountId, aux: Felt) {
+fn create_p2id_note(
+    serial_num: Word,
+    input_asset: Asset,
+    recipient_id: AccountId,
+    aux: Felt,
+    account: &mut Account,
+) {
     // Create a tag for the P2ID note - LocalAny with payload 0
     // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
     let tag = Tag::from(Felt::from_u32(0xC0000000));
@@ -226,16 +244,31 @@ fn create_p2id_note(serial_num: Word, input_asset: Asset, recipient_id: AccountI
 
     let input_asset_reversed = Asset::new(input_asset.inner.reverse());
 
-    // Add the asset to the note
-    output_note::add_asset(input_asset_reversed, note_idx);
+    //return;
+    account.move_asset_to_note(input_asset_reversed, note_idx);
+
+    // native_account::remove_asset(input_asset_reversed);
+
+    // //assert_eq!(felt!(0), felt!(1));
+    // // Add the asset to the note
+    // output_note::add_asset(input_asset_reversed, note_idx);
+    //assert_eq!(felt!(0), felt!(1));
 }
 /// Create a Swapp note with remainder parameters
-fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: Asset, padded_inputs: Vec<Felt>) {
-    // Create a same tag as the active note
-    let tag = get_note_tag();
+fn create_swapp_note(
+    serial_num: Word,
+    aux: Felt,
+    offered_asset: Asset,
+    padded_inputs: Vec<Felt>,
+    account: &mut Account,
+) {
+    // Create a tag for the P2ID note - LocalAny with payload 0
+    // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
+    let tag = Tag::from(Felt::from_u32(0xC0000000));
 
     // Create a same note type as the active note
-    let note_type = get_note_type();
+    //let note_type = get_note_type();
+    let note_type = NoteType::from(felt!(1));
 
     // Set execution hint (always executable for now)
     let execution_hint = felt!(0);
@@ -250,8 +283,10 @@ fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: Asset, padded_i
     // Create the note using output_note::create
     let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
 
+    let offered_asset_reversed = Asset::new(offered_asset.inner.reverse());
+
     // Add the asset to the note
-    output_note::add_asset(offered_asset, note_idx);
+    account.move_asset_to_note(offered_asset_reversed, note_idx);
 }
 
 fn get_note_tag() -> Tag {

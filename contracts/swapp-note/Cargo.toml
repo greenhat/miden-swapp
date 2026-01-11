@@ -10,6 +10,13 @@ crate-type = ["cdylib"]
 miden = { workspace = true }
 
 
+# Miden dependencies for cargo-miden build/linking
+[package.metadata.miden.dependencies]
+"miden:basic-wallet" = { path = "../basic-wallet" }
+
+
+[package.metadata.component.target.dependencies]
+"miden:basic-wallet" = { path = "../basic-wallet/target/generated-wit/" }
 
 
 [package.metadata.component]
