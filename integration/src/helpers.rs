@@ -28,6 +28,7 @@ use miden_mast_package::{Package, SectionId};
 use miden_objects::account::{
     AccountBuilder, AccountComponent, AccountComponentMetadata, AccountComponentTemplate,
 };
+use miden_objects::asset::Asset;
 use rand::{rngs::StdRng, RngCore};
 
 /// Test setup configuration containing initialized client and keystore
@@ -135,6 +136,119 @@ impl Default for AccountCreationConfig {
             supported_types: None,
         }
     }
+}
+
+/// Creates an account component from a compiled package
+///
+/// # Arguments
+/// * `package` - The compiled package containing account component metadata
+/// * `config` - Configuration for account creation
+///
+/// # Returns
+/// An `AccountComponent` configured according to the provided config
+///
+/// # Errors
+/// Returns an error if the package doesn't contain account component metadata or deserialization fails
+pub fn account_component_from_package(
+    package: Arc<Package>,
+    config: &AccountCreationConfig,
+) -> Result<AccountComponent> {
+    // Find the account component metadata section in the package
+    let account_component_metadata = package.sections.iter().find_map(|s| {
+        if s.id == SectionId::ACCOUNT_COMPONENT_METADATA {
+            Some(s.data.borrow())
+        } else {
+            None
+        }
+    });
+
+    let account_component = match account_component_metadata {
+        None => bail!("Package missing account component metadata"),
+        Some(bytes) => {
+            let metadata = AccountComponentMetadata::read_from_bytes(bytes)
+                .context("Failed to deserialize account component metadata")?;
+
+            let template =
+                AccountComponentTemplate::new(metadata, package.unwrap_library().as_ref().clone());
+
+            let component =
+                AccountComponent::new(template.library().clone(), config.storage_slots.clone())
+                    .context("Failed to create account component")?;
+
+            // Use supported types from config if provided, otherwise default to RegularAccountImmutableCode
+            let supported_types = if let Some(types) = &config.supported_types {
+                BTreeSet::from_iter(types.clone())
+            } else {
+                BTreeSet::from_iter([AccountType::RegularAccountImmutableCode])
+            };
+
+            component.with_supported_types(supported_types)
+        }
+    };
+
+    Ok(account_component)
+}
+
+/// Creates an account with a custom component from a compiled package
+///
+/// # Arguments
+/// * `client` - The Miden client instance
+/// * `package` - The compiled package containing the account component
+/// * `config` - Configuration for account creation
+///
+/// # Returns
+/// The created `Account`
+///
+/// # Errors
+/// Returns an error if account creation or client operations fail
+pub async fn create_account_from_package(
+    client: &mut Client<FilesystemKeyStore<StdRng>>,
+    package: Arc<Package>,
+    config: AccountCreationConfig,
+) -> Result<Account> {
+    let account_component = account_component_from_package(package, &config)
+        .context("Failed to create account component from package")?;
+
+    let mut init_seed = [0_u8; 32];
+    client.rng().fill_bytes(&mut init_seed);
+
+    let account = AccountBuilder::new(init_seed)
+        .account_type(config.account_type)
+        .storage_mode(config.storage_mode)
+        .with_component(account_component)
+        .with_auth_component(NoAuth)
+        .build()
+        .context("Failed to build account")?;
+
+    println!("Account ID: {:?}", account.id());
+
+    client
+        .add_account(&account, false)
+        .await
+        .context("Failed to add account to client")?;
+
+    Ok(account)
+}
+
+pub async fn create_testing_account_from_package(
+    package: Arc<Package>,
+    config: AccountCreationConfig,
+    assets: Vec<Asset>,
+) -> Result<Account> {
+    let account_component = account_component_from_package(package, &config)
+        .context("Failed to create account component from package")?;
+
+    let account = AccountBuilder::new([3u8; 32])
+        .account_type(config.account_type)
+        .storage_mode(config.storage_mode)
+        .with_component(account_component)
+        .with_component(BasicWallet)
+        .with_auth_component(NoAuth)
+        .with_assets(assets)
+        .build_existing()
+        .context("Failed to build account")?;
+
+    Ok(account)
 }
 
 /// Configuration for creating a note
