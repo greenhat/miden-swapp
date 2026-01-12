@@ -85,11 +85,11 @@ fn run(arg: Word, account: &mut Account) {
     }
 
     // Compute offered output amount proportional to input
-    let offered_out = calculate_output_amount(
-        offered_asset_total,
-        requested_asset_total,
-        total_input_amount,
-    );
+    let input_offered_out =
+        calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
+
+    let inflight_offered_out =
+        calculate_output_amount(offered_asset_total, requested_asset_total, inflight_amount);
 
     assert_eq!(current_note_serial.inner.3, felt!(0));
 
@@ -99,8 +99,9 @@ fn run(arg: Word, account: &mut Account) {
         Word::from([felt!(1), felt!(1), felt!(1), felt!(1)]),
     );
 
+    let total_input_amount = input_amount + inflight_amount;
     // aux value is the input amount so that the swapp note creator can determine build the note
-    let aux_value = input_amount;
+    let aux_value = total_input_amount;
     let input_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], input_amount]));
 
     // Create P2ID note using output_note module
@@ -113,6 +114,7 @@ fn run(arg: Word, account: &mut Account) {
     );
 
     let inputs = active_note::get_inputs();
+    let inflight_amount = arg[1];
 
     // Add the inflight amount to the p2id note
     let inflight_asset = Asset::new(Word::from([
@@ -126,16 +128,17 @@ fn run(arg: Word, account: &mut Account) {
 
     // Compute the total input amount( Need to recalculate this value because earlier one got of stack memory )
     let total_input_amount = input_amount + inflight_amount;
+    let total_offered_out = input_offered_out + inflight_offered_out;
 
     // Create remainder swap note in case of partial fill
-    if offered_out.as_u64() < offered_asset_total.as_u64() {
+    if total_offered_out.as_u64() < offered_asset_total.as_u64() {
         let remainder_serial = hash_words(&[current_note_serial]).inner;
-        let remainder_aux = offered_out;
+        let remainder_aux = total_offered_out;
         let requested_asset_total = inputs[3] - total_input_amount;
         let remainder_requested_asset =
             Asset::from([inputs[0], inputs[1], inputs[2], requested_asset_total]);
 
-        let remainder_offered_asset_total = offered_asset_total - offered_out;
+        let remainder_offered_asset_total = offered_asset_total - total_offered_out;
         let remainder_offered_asset = Asset::new(Word::from([
             offered_asset.inner[3],
             offered_asset.inner[2],

@@ -235,6 +235,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e050f626429857a27ddccb31e0aca21356bfa709c04041aefddac081a8f068a"
 
 [[package]]
+name = "basic_wallet"
+version = "0.1.0"
+dependencies = [
+ "miden",
+]
+
+[[package]]
 name = "bech32"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1451,6 +1458,7 @@ dependencies = [
  "miden-lib",
  "miden-mast-package",
  "miden-objects",
+ "miden-processor",
  "miden-testing",
  "rand",
  "tokio",

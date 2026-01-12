@@ -10,6 +10,7 @@ miden-client = { version = "0.12", features = ["tonic", "testing"] }
 miden-client-sqlite-store = { version = "0.12", package = "miden-client-sqlite-store" }
 miden-objects = { version = "0.12", default-features = false, features = ["testing"] }
 miden-core = { version = "0.19" }
+miden-processor = { version = "0.19" }
 miden-testing = "0.12"
 miden-mast-package = { version = "0.19", default-features = false }
 miden-lib = { version = "0.12" }
