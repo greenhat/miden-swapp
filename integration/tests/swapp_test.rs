@@ -1008,7 +1008,10 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
 
     let mut note_args_map = BTreeMap::new();
     note_args_map.insert(alice_swap_note.id(), alice_note_args);
+    println!("Alice note args: {:?}", alice_swap_note.serial_num());
+
     note_args_map.insert(charlie_swap_note.id(), charlie_note_args);
+    println!("Charlie note args: {:?}", charlie_swap_note.serial_num());
 
     // STEP 8: Create expected P2ID notes
 

@@ -29,7 +29,7 @@ use miden_objects::account::{
     AccountBuilder, AccountComponent, AccountComponentMetadata, AccountComponentTemplate,
 };
 use miden_objects::asset::Asset;
-use rand::{rngs::StdRng, RngCore};
+use rand::{rngs::StdRng, Rng, RngCore};
 
 /// Test setup configuration containing initialized client and keystore
 pub struct ClientSetup {
@@ -329,7 +329,8 @@ pub fn create_testing_note_from_package(
     );
 
     // get 4 random u64s and convert them to a word
-    let random_u64s = [0_u64; 4];
+    let mut rng = rand::rng();
+    let random_u64s: [u64; 4] = [rng.random(), rng.random(), rng.random(), rng.random()];
     let serial_num =
         Word::try_from(random_u64s).context("Failed to convert random u64s to word")?;
 
