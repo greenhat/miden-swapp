@@ -15,7 +15,6 @@ use miden_client::{
 use miden_core::FieldElement;
 use miden_lib::note::{utils::build_p2id_recipient, WellKnownNote};
 use miden_objects::asset::{Asset, FungibleAsset};
-use miden_processor::AdviceInputs;
 use miden_testing::{Auth, MockChain};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
@@ -166,12 +165,14 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
         .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.into())])
-        //.extend_advice_inputs(advice_map)
-        //.extend_advice_inputs(advice_inputs)
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
-    println!("Transaction executed successfully!");
+
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
 
     // STEP 6: Verify results
     println!("\n=== Verification ===");
@@ -251,6 +252,254 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     println!("  - Bob provided 25 ETH");
     println!("  - Bob received 50 USDC");
     println!("  - P2ID note created for Alice with 25 ETH");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
+    println!("=== Test: Private Note Full Fill Swap ===");
+    let mut builder = MockChain::builder();
+
+    // STEP 1: Create faucets in genesis
+    println!("Creating USDC and ETH faucets...");
+    let usdc_faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth,
+        "USDC",
+        1000,      // max_supply
+        Some(150), // total_issuance (50 for note + 100 for Bob)
+    )?;
+    println!("USDC Faucet: {:?}", usdc_faucet.id());
+    println!("  Version: {:?}", usdc_faucet.id().version());
+
+    let eth_faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth,
+        "ETH",
+        1000,     // max_supply
+        Some(50), // total_issuance (25 for Alice's request)
+    )?;
+    println!("ETH Faucet: {:?}", eth_faucet.id());
+    println!("  Version: {:?}", eth_faucet.id().version());
+
+    // STEP 2: Create wallets with initial assets
+    println!("\nCreating Alice and Bob wallets with initial assets...");
+    let alice = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth,
+        [FungibleAsset::new(usdc_faucet.id(), 50)?.into()], // Alice has 50 USDC to offer
+    )?;
+    println!("Alice: {:?} (has 50 USDC)", alice.id());
+    println!("  Version: {:?}", alice.id().version());
+
+    // Build basic-wallet contract package
+    println!("\nBuilding basic-wallet contract...");
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
+    println!("Basic-wallet contract built successfully.");
+
+    // Create custom account configuration with default settings
+    let bob_account_cfg = AccountCreationConfig {
+        storage_slots: vec![],
+        ..Default::default()
+    };
+
+    let assets = vec![FungibleAsset::new(eth_faucet.id(), 25)?.into()];
+
+    let bob = create_testing_account_from_package(account_package.clone(), bob_account_cfg, assets)
+        .await?;
+    println!("Bob account created: {:?}", bob.id());
+
+    let bob_account = builder.add_account(bob.clone());
+
+    // STEP 3: Build swapp-note contract
+    println!("\nBuilding swapp-note contract...");
+    let swapp_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/swapp-note"),
+        true,
+    )?);
+    println!("Swapp note contract built successfully.");
+
+    // STEP 4: Create PRIVATE swap note with proper structure
+    println!("\nCreating PRIVATE swap note (Alice offers 50 USDC for 25 ETH)...");
+    let note_inputs = vec![
+        // Requested Asset (positions 0-3): 25 ETH
+        eth_faucet.id().prefix().into(),
+        eth_faucet.id().suffix().into(),
+        Felt::ZERO,
+        Felt::new(25), // requested_asset_total
+        // Note Creator (positions 4-7): Alice
+        alice.id().prefix().into(),
+        alice.id().suffix().into(),
+        Felt::ZERO,
+        Felt::ZERO,
+    ];
+
+    // Add the offered asset (50 USDC) to the note
+    let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
+    let mut note_assets = NoteAssets::default();
+    note_assets.add_asset(offered_asset.into())?;
+
+    let swap_note = create_testing_note_from_package(
+        swapp_package.clone(),
+        alice.id(),
+        NoteCreationConfig {
+            assets: note_assets,
+            inputs: note_inputs,
+            note_type: NoteType::Private, // PRIVATE NOTE
+            ..Default::default()
+        },
+    )?;
+    println!("Private swap note created: {:?}", swap_note.id());
+    println!("  Note type: {:?}", swap_note.metadata().note_type());
+
+    // Add note to genesis
+    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+
+    // STEP 5: Build MockChain and execute transaction
+    println!("\nBuilding MockChain...");
+    let mut mock_chain = builder.build()?;
+
+    // Bob consumes the swap note with full fill (25 ETH)
+    println!("\nBob consuming private swap note (providing 25 ETH - full fill)...");
+    let note_args = Word::from([
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::new(25), // input_amount = 25 (full fill)
+    ]);
+
+    let mut note_args_map = BTreeMap::new();
+    note_args_map.insert(swap_note.id(), note_args);
+
+    // Create the expected P2ID note that will be created by the swap script
+    // This note will contain 25 ETH and be sent to Alice
+    println!("\nCreating expected P2ID note for Alice (25 ETH)...");
+
+    let serial_num = Word::from([
+        swap_note.recipient().serial_num()[0] + Felt::new(1),
+        swap_note.recipient().serial_num()[1] + Felt::new(1),
+        swap_note.recipient().serial_num()[2] + Felt::new(1),
+        swap_note.recipient().serial_num()[3] + Felt::new(1),
+    ]);
+
+    let recipient = build_p2id_recipient(alice.id(), serial_num)?;
+
+    // Prepare the advice map for the P2ID note
+    let tag = NoteTag::LocalAny(3221225472);
+    let aux = Felt::new(25);
+    let execution_hint = NoteExecutionHint::none();
+
+    // Add the asset (4 Felts = 1 Word)
+    let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
+
+    let note_assets = NoteAssets::new(vec![asset.into()])?;
+
+    // P2ID note should also be private to match privacy expectations
+    let note_metadata = NoteMetadata::new(bob.id(), NoteType::Private, tag, execution_hint, aux)?;
+
+    let p2id_note = Note::new(note_assets, note_metadata, recipient);
+
+    // Rebuild the transaction context with the vault tree nodes
+    let tx_context = mock_chain
+        .build_tx_context(bob.id(), &[swap_note.id()], &[])?
+        .extend_note_args(note_args_map)
+        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.into())])
+        .build()?;
+
+    let executed_transaction = tx_context.execute().await?;
+
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
+
+    // STEP 6: Verify results
+    println!("\n=== Verification ===");
+
+    // Check output notes - should have 1 P2ID note
+    let output_notes = executed_transaction.output_notes();
+    println!("Output notes created: {}", output_notes.num_notes());
+    assert_eq!(output_notes.num_notes(), 1, "Expected exactly 1 P2ID note");
+
+    let p2id_note = output_notes.get_note(0);
+    println!("P2ID note created: {:?}", p2id_note.id());
+
+    // Verify the note is private
+    assert_eq!(
+        p2id_note.metadata().note_type(),
+        NoteType::Private,
+        "P2ID note should be private"
+    );
+    println!("✓ P2ID note is private");
+
+    // Verify P2ID note contains 25 ETH for Alice
+    let p2id_assets = p2id_note.assets().unwrap();
+    assert_eq!(
+        p2id_assets.num_assets(),
+        1,
+        "P2ID note should have exactly 1 asset"
+    );
+
+    // Get the asset and verify it's 25 ETH
+    let p2id_asset = p2id_assets.iter().next().unwrap();
+    let p2id_fungible = match p2id_asset {
+        Asset::Fungible(f) => f,
+        _ => panic!("Expected fungible asset in P2ID note"),
+    };
+    assert_eq!(
+        p2id_fungible.faucet_id(),
+        eth_faucet.id(),
+        "P2ID note should contain ETH"
+    );
+    assert_eq!(
+        p2id_fungible.amount(),
+        25,
+        "P2ID note should contain 25 ETH"
+    );
+    println!("✓ P2ID note verified: 25 ETH for Alice");
+
+    // Check Bob's account delta - should have received 50 USDC
+    let account_delta = executed_transaction.account_delta();
+    let vault_delta = account_delta.vault();
+
+    // Verify Bob received 50 USDC and spent 25 ETH
+    let added_assets: Vec<Asset> = vault_delta.added_assets().collect();
+    let removed_assets: Vec<Asset> = vault_delta.removed_assets().collect();
+
+    assert_eq!(added_assets.len(), 1, "Bob should receive 1 asset (USDC)");
+
+    let usdc_received = match added_assets[0] {
+        Asset::Fungible(f) => f,
+        _ => panic!("Expected fungible USDC asset"),
+    };
+    assert_eq!(
+        usdc_received.faucet_id(),
+        usdc_faucet.id(),
+        "Bob should receive USDC"
+    );
+    assert_eq!(usdc_received.amount(), 50, "Bob should receive 50 USDC");
+
+    mock_chain.add_pending_executed_transaction(&executed_transaction)?;
+    mock_chain.prove_next_block();
+
+    let eth_spent = match removed_assets[0] {
+        Asset::Fungible(f) => f,
+        _ => panic!("Expected fungible ETH asset"),
+    };
+    assert_eq!(
+        eth_spent.faucet_id(),
+        eth_faucet.id(),
+        "Bob should spend ETH"
+    );
+    assert_eq!(eth_spent.amount(), 25, "Bob should spend 25 ETH");
+    println!("✓ Bob's vault delta verified: +50 USDC, -25 ETH");
+
+    println!("\n✅ Private note full-fill swap test passed!");
+    println!("  - Private swap note created and consumed");
+    println!("  - Bob provided 25 ETH");
+    println!("  - Bob received 50 USDC");
+    println!("  - Private P2ID note created for Alice with 25 ETH");
 
     Ok(())
 }
@@ -438,7 +687,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     );
 
     // Create metadata for remainder note
-    let remainder_tag = NoteTag::LocalAny(3221225472);
+    let remainder_tag = swap_note.metadata().tag();
     let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
     let remainder_note_metadata = NoteMetadata::new(
         bob.id(),
@@ -469,6 +718,11 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
 
     let executed_transaction = tx_context.execute().await?;
     println!("Transaction executed successfully!");
+
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
 
     // STEP 6: Verify results
     println!("\n=== Verification ===");
@@ -748,7 +1002,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
                 remainder_note_inputs_obj,
             );
 
-            let remainder_tag = NoteTag::LocalAny(3221225472);
+            let remainder_tag = swap_note.metadata().tag();
             let remainder_aux = Felt::new(offered_out);
             let remainder_note_metadata = NoteMetadata::new(
                 bob.id(),
@@ -778,6 +1032,11 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
 
         let executed_transaction = tx_context.execute().await?;
         println!("Transaction executed successfully!");
+
+        println!(
+            "Cycle count: {:?}",
+            executed_transaction.measurements().note_execution
+        );
 
         // STEP 6: Verify results
         println!("\n=== Verification ===");
@@ -1086,6 +1345,11 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     let executed_transaction = tx_context.execute().await?;
     println!("Transaction executed successfully!");
 
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
+
     // STEP 9: Verify results
     println!("\n=== Verification ===");
 
@@ -1232,6 +1496,11 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
 
     let executed_transaction = tx_context.execute().await?;
     println!("Transaction executed successfully!");
+
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
 
     // STEP 6: Verify results
     println!("\n=== Verification ===");

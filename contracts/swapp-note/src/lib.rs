@@ -78,14 +78,14 @@ fn run(arg: Word, account: &mut Account) {
         felt!(0)
     };
 
+    assert_eq(is_valid, felt!(1));
+
     // Compute offered output amount proportional to input
     let input_offered_out =
         calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
 
     let inflight_offered_out =
         calculate_output_amount(offered_asset_total, requested_asset_total, inflight_amount);
-
-    //assert_eq(offered_asset.inner[0], felt!(50));
 
     let input_offered_asset = Asset::new(Word::from([
         input_offered_out,
@@ -170,7 +170,6 @@ fn run(arg: Word, account: &mut Account) {
             remainder_aux,
             &remainder_offered_asset,
             padded_inputs,
-            account,
         );
     }
     //assert_eq(felt!(0), felt!(1));
@@ -222,7 +221,7 @@ fn create_p2id_note(
 
     // Create a same note type as the active note
     //let note_type = get_note_type();
-    let note_type = NoteType::from(felt!(1));
+    let note_type = get_note_type();
 
     // Set execution hint (always executable for now)
     let execution_hint = felt!(0);
@@ -260,20 +259,15 @@ fn create_p2id_note(
     output_note::add_asset(inflight_asset.clone(), note_idx);
 }
 /// Create a Swapp note with remainder parameters
-fn create_swapp_note(
-    serial_num: Word,
-    aux: Felt,
-    offered_asset: &Asset,
-    padded_inputs: Vec<Felt>,
-    account: &mut Account,
-) {
+fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: &Asset, padded_inputs: Vec<Felt>) {
     // Create a tag for the P2ID note - LocalAny with payload 0
     // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
-    let tag = Tag::from(Felt::from_u32(0xC0000000));
+    //let tag = Tag::from(Felt::from_u32(0xC0000000));
+    let tag = get_note_tag();
 
     // Create a same note type as the active note
     //let note_type = get_note_type();
-    let note_type = NoteType::from(felt!(1));
+    let note_type = get_note_type();
 
     // Set execution hint (always executable for now)
     let execution_hint = felt!(0);
@@ -293,22 +287,44 @@ fn create_swapp_note(
 
 fn get_note_tag() -> Tag {
     let metadata = active_note::get_metadata();
-    // Shift left by 32 bits
-    let left_shifted_32 = metadata[2] * Felt::from_u32(2u32.pow(32));
-    // Shift right by 32 bits
-    let tag_felt = left_shifted_32 / (Felt::from_u32(2u32.pow(32)));
+    // metadata[2] layout: [note_execution_hint_payload (32 bits) | note_tag (32 bits)]
+    // Based on merge_note_tag_and_hint_payload: (payload << 32) | note_tag
+    // Extract note_tag: it's in the lower 32 bits (bits 0-31)
+
+    let third_felt = metadata[2];
+
+    // Use u64 bit manipulation (same pattern as get_note_type)
+    // Convert to u64 for bit manipulation
+    let third_felt_u64 = third_felt.as_u64();
+
+    // Mask with 0xFFFFFFFF to extract lower 32 bits (note_tag)
+    let tag_u64 = third_felt_u64 & 0xFFFFFFFFu64;
+
+    // Convert back to Felt
+    let tag_felt = Felt::from_u64_unchecked(tag_u64);
+
     Tag::from(tag_felt)
 }
 
 fn get_note_type() -> NoteType {
     let metadata = active_note::get_metadata();
-    // 2nd felt: [sender_id_suffix (56 bits) | note_type (2 bits) | note_execution_hint_tag (6 bits)]
-    // Extract note_type: shift right by 6 bits (to skip note_execution_hint_tag), then mask with 0b11 (2 bits)
-    let second_felt = metadata[2];
+    // metadata[1] layout: [sender_id_suffix (56 bits) | note_type (2 bits) | note_execution_hint_tag (6 bits)]
+    // Based on merge_id_type_and_hint_tag: type_bits << 6 | tag_bits
+    // Extract note_type: left shift by 56 bits to move note_type to positions 62-63, then right shift by 62 to get it at positions 0-1
+    let second_felt = metadata[1];
 
-    // Shift left by 56 bits
-    let left_shifted_56 = second_felt * Felt::from_u64_unchecked(2u64.pow(56));
-    // Shift right by 62
-    let note_type_felt = left_shifted_56 / Felt::from_u64_unchecked(2u64.pow(62));
+    // Use u64 bit manipulation with wrapping shifts
+    // Convert to u64 for bit manipulation
+    let second_felt_u64 = second_felt.as_u64();
+
+    // Shift left by 56 bits to move note_type (at bits 6-7) to positions 62-63
+    let left_shifted_56_u64 = second_felt_u64.wrapping_shl(56);
+
+    // Shift right by 62 bits to move note_type from positions 62-63 to positions 0-1
+    let note_type_u64 = left_shifted_56_u64.wrapping_shr(62);
+
+    // Convert back to Felt
+    let note_type_felt = Felt::from_u64_unchecked(note_type_u64);
+
     NoteType::from(note_type_felt)
 }

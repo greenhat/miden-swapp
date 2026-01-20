@@ -1461,6 +1461,8 @@ dependencies = [
  "miden-processor",
  "miden-testing",
  "rand",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

@@ -22,10 +22,12 @@ env/
 node_modules/
 *DS_Store
 *.iml
+target/
 
 # Ignore database and keystore files
 store.sqlite3
 keystore/
+swapp_test_state.json
 
 # Ignore contract build artifacts
 contracts/**/target/
