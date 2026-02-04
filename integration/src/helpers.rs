@@ -14,10 +14,7 @@ use miden_client::{
     crypto::rpo_falcon512::SecretKey,
     crypto::FeltRng,
     keystore::FilesystemKeyStore,
-    note::{
-        Note, NoteInputs, NoteMetadata, NoteRecipient, NoteScript, NoteTag,
-        NoteType,
-    },
+    note::{Note, NoteInputs, NoteMetadata, NoteRecipient, NoteScript, NoteTag, NoteType},
     rpc::{Endpoint, GrpcClient},
     utils::Deserializable,
     Client, Word,
@@ -25,10 +22,7 @@ use miden_client::{
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_core::Felt;
 use miden_mast_package::Package;
-use miden_protocol::account::{
-    AccountBuilder, AccountComponent,
-    component::InitStorageData,
-};
+use miden_protocol::account::{component::InitStorageData, AccountBuilder, AccountComponent};
 use miden_protocol::asset::Asset;
 use rand::{Rng, RngCore};
 
@@ -56,10 +50,8 @@ pub async fn setup_client() -> Result<ClientSetup> {
     let keystore_path =
         std::path::PathBuf::from("/Users/vaibhavjindal/miden-swapp/integration/keystore");
 
-    let keystore = Arc::new(
-        FilesystemKeyStore::new(keystore_path)
-            .context("Failed to initialize keystore")?,
-    );
+    let keystore =
+        Arc::new(FilesystemKeyStore::new(keystore_path).context("Failed to initialize keystore")?);
 
     let store_path =
         std::path::PathBuf::from("/Users/vaibhavjindal/miden-swapp/integration/store.sqlite3");
@@ -285,11 +277,7 @@ pub fn create_note_from_package(
     let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
 
     // v0.13: NoteMetadata::new takes 3 params (sender, type, tag)
-    let metadata = NoteMetadata::new(
-        sender_id,
-        config.note_type,
-        config.tag,
-    );
+    let metadata = NoteMetadata::new(sender_id, config.note_type, config.tag);
 
     Ok(Note::new(config.assets, metadata, recipient))
 }
@@ -315,11 +303,7 @@ pub fn create_testing_note_from_package(
     let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
 
     // v0.13: NoteMetadata::new takes 3 params (sender, type, tag)
-    let metadata = NoteMetadata::new(
-        sender_id,
-        config.note_type,
-        config.tag,
-    );
+    let metadata = NoteMetadata::new(sender_id, config.note_type, config.tag);
 
     Ok(Note::new(config.assets, metadata, recipient))
 }
