@@ -30,7 +30,7 @@ use miden::*;
 ///   - inputs[4]: note_creator_account_id_prefix (Felt)
 ///   - inputs[5]: note_creator_account_id_suffix (Felt)
 ///   - inputs[6]: padding (0, Felt)
-///   - inputs[7]: padding (0, Felt)
+///   - inputs[7]: tag (Felt)
 ///
 ///
 #[note_script]
@@ -154,6 +154,9 @@ fn run(arg: Word, account: &mut Account) {
 
         let swapp_note_creator_id = AccountId::from(inputs[4], inputs[5]);
 
+        let inputs = active_note::get_inputs();
+        let tag = inputs[7];
+
         let padded_inputs = vec![
             remainder_requested_asset.inner[0],
             remainder_requested_asset.inner[1],
@@ -162,7 +165,7 @@ fn run(arg: Word, account: &mut Account) {
             swapp_note_creator_id.prefix,
             swapp_note_creator_id.suffix,
             felt!(0),
-            felt!(0),
+            tag,
         ];
 
         create_swapp_note(
@@ -215,9 +218,12 @@ fn create_p2id_note(
     aux: Felt,
     account: &mut Account,
 ) {
+    let inputs = active_note::get_inputs();
+    let tag = inputs[7];
+    let tag = Tag::from(tag);
     // Create a tag for the P2ID note - LocalAny with payload 0
     // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
-    let tag = Tag::from(Felt::from_u32(0xC0000000));
+    //let tag = Tag::from(Felt::from_u32(0xC0000000));
 
     // Create a same note type as the active note
     //let note_type = get_note_type();

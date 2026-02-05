@@ -1,6 +1,6 @@
 use integration::helpers::{
-    build_project_in_dir, create_testing_note_from_package, setup_client, ClientSetup,
-    NoteCreationConfig,
+    build_project_in_dir, compute_p2id_tag_felt, create_testing_note_from_package, setup_client,
+    ClientSetup, NoteCreationConfig,
 };
 
 use anyhow::{Context, Result};
@@ -293,9 +293,13 @@ async fn main() -> Result<()> {
     let mut note_assets = NoteAssets::default();
     note_assets.add_asset(offered_asset.into())?;
 
+    // Compute P2ID tag for Alice (who will receive the output note)
+    let p2id_tag_felt = compute_p2id_tag_felt(alice_account.id());
+
     // Build note inputs (8 Felts):
     // - Positions 0-3: Requested Asset Word (Faucet2.prefix, Faucet2.suffix, 0, 75)
-    // - Positions 4-7: Creator AccountId (Alice.prefix, Alice.suffix, 0, 0)
+    // - Positions 4-6: Creator AccountId (Alice.prefix, Alice.suffix, 0)
+    // - Position 7: P2ID Tag
     let note_inputs = vec![
         // Requested Asset Word (ETH)
         faucet2_account.id().prefix().into(),
@@ -306,7 +310,8 @@ async fn main() -> Result<()> {
         alice_account.id().prefix().into(),
         alice_account.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     // Create the swap note using the helper function

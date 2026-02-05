@@ -8,6 +8,5 @@ resolver = "2"
 edition = "2021"
 
 [workspace.dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }
-
+miden = { version = "0.8" }
 

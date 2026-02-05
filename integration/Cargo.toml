@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 miden = { workspace = true }
-cargo-miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }
+cargo-miden = { version = "0.6.0" }
 miden-client = { version = "0.12", features = ["tonic", "testing"] }
 miden-client-sqlite-store = { version = "0.12", package = "miden-client-sqlite-store" }
 miden-objects = { version = "0.12", default-features = false, features = ["testing"] }

@@ -396,3 +396,32 @@ pub async fn create_basic_wallet_account(
 
     Ok(account)
 }
+
+/// Compute the P2ID tag for a local account
+///
+/// # Arguments
+/// * `account_id` - The account ID to compute the tag for
+///
+/// # Returns
+/// A `NoteTag` configured for P2ID (Pay-to-ID) local usage
+pub fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
+    NoteTag::from_account_id(account_id)
+}
+
+/// Helper function to compute P2ID tag as Felt for use in note inputs
+///
+/// Returns the tag value as a Felt that can be directly added to note_inputs
+///
+/// # Arguments
+/// * `account_id` - The account ID to compute the tag for
+///
+/// # Returns
+/// A `Felt` containing the P2ID tag value for the specified account
+pub fn compute_p2id_tag_felt(account_id: AccountId) -> Felt {
+    let p2id_tag = compute_p2id_tag_for_local_account(account_id);
+    let p2id_tag_u32 = match p2id_tag {
+        NoteTag::LocalAny(v) => v,
+        _ => panic!("Expected LocalAny tag"),
+    };
+    Felt::new(p2id_tag_u32 as u64)
+}

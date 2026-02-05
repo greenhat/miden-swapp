@@ -14,9 +14,28 @@ use miden_client::{
 };
 use miden_core::FieldElement;
 use miden_lib::note::{utils::build_p2id_recipient, WellKnownNote};
-use miden_objects::asset::{Asset, FungibleAsset};
+use miden_objects::{
+    account::AccountId,
+    asset::{Asset, FungibleAsset},
+};
 use miden_testing::{Auth, MockChain};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
+
+/// Compute the P2ID tag for a local account
+fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
+    NoteTag::from_account_id(account_id)
+}
+
+/// Helper function to compute P2ID tag as Felt for use in note inputs
+/// Returns the tag value as a Felt that can be directly added to note_inputs
+fn compute_p2id_tag_felt(account_id: AccountId) -> Felt {
+    let p2id_tag = compute_p2id_tag_for_local_account(account_id);
+    let p2id_tag_u32 = match p2id_tag {
+        NoteTag::LocalAny(v) => v,
+        _ => panic!("Expected LocalAny tag"),
+    };
+    Felt::new(p2id_tag_u32 as u64)
+}
 
 #[tokio::test]
 async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
@@ -84,17 +103,22 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
 
     // STEP 4: Create swap note with proper structure
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix().into(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
-        // Note Creator (positions 4-7): Alice
+        // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     // Add the offered asset (50 USDC) to the note
@@ -147,7 +171,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
 
     // Prepare the advice map for the P2ID note
     // The key is the hash of the note creation parameters, and the value contains the full parameters
-    let tag = NoteTag::LocalAny(3221225472);
+    let tag = compute_p2id_tag_for_local_account(alice.id());
     let aux = Felt::new(25);
     let execution_hint = NoteExecutionHint::none();
 
@@ -322,17 +346,22 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
 
     // STEP 4: Create PRIVATE swap note with proper structure
     println!("\nCreating PRIVATE swap note (Alice offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix().into(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
-        // Note Creator (positions 4-7): Alice
+        // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     // Add the offered asset (50 USDC) to the note
@@ -386,7 +415,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     let recipient = build_p2id_recipient(alice.id(), serial_num)?;
 
     // Prepare the advice map for the P2ID note
-    let tag = NoteTag::LocalAny(3221225472);
+    let tag = compute_p2id_tag_for_local_account(alice.id());
     let aux = Felt::new(25);
     let execution_hint = NoteExecutionHint::none();
 
@@ -570,17 +599,22 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
 
     // STEP 4: Create swap note with proper structure
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix().into(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
-        // Note Creator (positions 4-7): Alice
+        // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     // Add the offered asset (50 USDC) to the note
@@ -630,7 +664,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
 
     let p2id_recipient = build_p2id_recipient(alice.id(), p2id_serial_num)?;
 
-    let p2id_tag = NoteTag::LocalAny(3221225472);
+    let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
     let p2id_aux = Felt::new(15); // input_amount
     let p2id_execution_hint = NoteExecutionHint::none();
 
@@ -670,7 +704,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        p2id_tag_felt,
     ];
 
     // Create recipient for remainder swap note
@@ -889,6 +923,10 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
 
         // STEP 4: Create swap note (Alice offers 50 USDC for 25 ETH)
         println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
+
+        // Compute proper P2ID tag for Alice (who will receive the output note)
+        let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
         let note_inputs = vec![
             eth_faucet.id().prefix().into(),
             eth_faucet.id().suffix().into(),
@@ -897,7 +935,8 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
             alice.id().prefix().into(),
             alice.id().suffix().into(),
             Felt::ZERO,
-            Felt::ZERO,
+            // P2ID Tag (position 7): computed tag for Alice
+            p2id_tag_felt,
         ];
 
         let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
@@ -951,7 +990,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
         ]);
 
         let p2id_recipient = build_p2id_recipient(alice.id(), p2id_serial_num)?;
-        let p2id_tag = NoteTag::LocalAny(3221225472);
+        let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
         let p2id_aux = Felt::new(input_amount);
         let p2id_asset = FungibleAsset::new(eth_faucet.id(), input_amount)?;
         let p2id_note_assets = NoteAssets::new(vec![p2id_asset.into()])?;
@@ -987,7 +1026,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
                 alice.id().prefix().into(),
                 alice.id().suffix().into(),
                 Felt::ZERO,
-                Felt::ZERO,
+                p2id_tag_felt,
             ];
 
             let note_program = swapp_package.unwrap_program();
@@ -1192,6 +1231,10 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
 
     // STEP 4: Create Alice's swap note (offers 25 ETH, wants 50 USDC)
     println!("\nCreating Alice's swap note (offers 25 ETH for 50 USDC)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let alice_p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
     let alice_note_inputs = vec![
         // Requested Asset: 50 USDC
         usdc_faucet.id().prefix().into(),
@@ -1202,7 +1245,8 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        alice_p2id_tag_felt,
     ];
 
     let alice_offered_asset = FungibleAsset::new(eth_faucet.id(), 25)?;
@@ -1224,6 +1268,10 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
 
     // STEP 5: Create Charlie's swap note (offers 50 USDC, wants 25 ETH)
     println!("\nCreating Charlie's swap note (offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Charlie (who will receive the output note)
+    let charlie_p2id_tag_felt = compute_p2id_tag_felt(charlie.id());
+
     let charlie_note_inputs = vec![
         // Requested Asset: 25 ETH
         eth_faucet.id().prefix().into(),
@@ -1234,7 +1282,8 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
         charlie.id().prefix().into(),
         charlie.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Charlie
+        charlie_p2id_tag_felt,
     ];
 
     let charlie_offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
@@ -1284,7 +1333,7 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     ]);
 
     let alice_p2id_recipient = build_p2id_recipient(alice.id(), alice_p2id_serial_num)?;
-    let alice_p2id_tag = NoteTag::LocalAny(3221225472);
+    let alice_p2id_tag = compute_p2id_tag_for_local_account(alice.id());
     let alice_p2id_aux = Felt::new(50); // 50 USDC
     let alice_p2id_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
     let alice_p2id_note_assets = NoteAssets::new(vec![alice_p2id_asset.into()])?;
@@ -1311,7 +1360,7 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     ]);
 
     let charlie_p2id_recipient = build_p2id_recipient(charlie.id(), charlie_p2id_serial_num)?;
-    let charlie_p2id_tag = NoteTag::LocalAny(3221225472);
+    let charlie_p2id_tag = compute_p2id_tag_for_local_account(charlie.id());
     let charlie_p2id_aux = Felt::new(25); // 25 ETH
     let charlie_p2id_asset = FungibleAsset::new(eth_faucet.id(), 25)?;
     let charlie_p2id_note_assets = NoteAssets::new(vec![charlie_p2id_asset.into()])?;
@@ -1455,6 +1504,15 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
 
     // STEP 4: Create swap note
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
+    let p2id_tag_u32 = match p2id_tag {
+        NoteTag::LocalAny(v) => v,
+        _ => panic!("Expected LocalAny tag"),
+    };
+    let p2id_tag_felt = Felt::new(p2id_tag_u32 as u64);
+
     let note_inputs = vec![
         // Requested Asset: 25 ETH
         eth_faucet.id().prefix().into(),
@@ -1465,7 +1523,8 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
@@ -1574,6 +1633,14 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
     )?);
 
     // STEP 4: Create swap note (Alice wants 25 ETH max)
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
+    let p2id_tag_u32 = match p2id_tag {
+        NoteTag::LocalAny(v) => v,
+        _ => panic!("Expected LocalAny tag"),
+    };
+    let p2id_tag_felt = Felt::new(p2id_tag_u32 as u64);
+
     let note_inputs = vec![
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix().into(),
@@ -1582,7 +1649,8 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
         alice.id().prefix().into(),
         alice.id().suffix().into(),
         Felt::ZERO,
-        Felt::ZERO,
+        // P2ID Tag (position 7): computed tag for Alice
+        p2id_tag_felt,
     ];
 
     let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
