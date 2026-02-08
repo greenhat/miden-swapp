@@ -8,12 +8,12 @@ use anyhow::{Context, Result};
 use miden_client::{
     account::component::{BasicFungibleFaucet, BasicWallet},
     auth::AuthSecretKey,
-    note::NoteType,
+    note::{Note, NoteType},
     transaction::TransactionRequestBuilder,
     Felt,
 };
-use miden_lib::account::auth::AuthRpoFalcon512;
-use miden_objects::{
+use miden_standards::account::auth::AuthFalcon512Rpo;
+use miden_protocol::{
     account::{AccountBuilder, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
 };
@@ -63,12 +63,12 @@ async fn main() -> Result<()> {
     let decimals = 8;
     let max_supply = Felt::new(1_000_000);
 
-    let key_pair_faucet1 = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_faucet1 = AuthSecretKey::new_falcon512_rpo();
 
     let faucet1_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_faucet1.public_key().to_commitment(),
         ))
         .with_component(BasicFungibleFaucet::new(symbol_usdt, decimals, max_supply).unwrap())
@@ -86,12 +86,12 @@ async fn main() -> Result<()> {
 
     let symbol_eth = TokenSymbol::new("ETH").unwrap();
 
-    let key_pair_faucet2 = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_faucet2 = AuthSecretKey::new_falcon512_rpo();
 
     let faucet2_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_faucet2.public_key().to_commitment(),
         ))
         .with_component(BasicFungibleFaucet::new(symbol_eth, decimals, max_supply).unwrap())
@@ -117,12 +117,12 @@ async fn main() -> Result<()> {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair_alice = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_alice = AuthSecretKey::new_falcon512_rpo();
 
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_alice.public_key().to_commitment(),
         ))
         .with_component(BasicWallet)
@@ -159,12 +159,12 @@ async fn main() -> Result<()> {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair_bob = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_bob = AuthSecretKey::new_falcon512_rpo();
 
     let bob_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_bob.public_key().to_commitment(),
         ))
         .with_component(bob_custom_component) // Component 1: from package
@@ -231,12 +231,20 @@ async fn main() -> Result<()> {
         let consumable_notes = client
             .get_consumable_notes(Some(alice_account.id()))
             .await?;
-        let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
+        // v0.13: Use try_into() to convert InputNoteRecord to Note
+        let list_of_notes: Vec<_> = consumable_notes
+            .into_iter()
+            .filter_map(|(record, _)| {
+                let note: Result<Note, _> = record.try_into();
+                note.ok().map(|n| (n, None))
+            })
+            .collect();
 
-        if !list_of_note_ids.is_empty() {
-            println!("Alice consuming {} note(s)", list_of_note_ids.len());
+        if !list_of_notes.is_empty() {
+            println!("Alice consuming {} note(s)", list_of_notes.len());
             let transaction_request = TransactionRequestBuilder::new()
-                .build_consume_notes(list_of_note_ids)
+                .input_notes(list_of_notes)
+                .build()
                 .unwrap();
 
             let tx_id = client
@@ -255,12 +263,20 @@ async fn main() -> Result<()> {
         client.sync_state().await?;
 
         let consumable_notes = client.get_consumable_notes(Some(bob_account.id())).await?;
-        let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
+        // v0.13: Use try_into() to convert InputNoteRecord to Note
+        let list_of_notes: Vec<_> = consumable_notes
+            .into_iter()
+            .filter_map(|(record, _)| {
+                let note: Result<Note, _> = record.try_into();
+                note.ok().map(|n| (n, None))
+            })
+            .collect();
 
-        if !list_of_note_ids.is_empty() {
-            println!("Bob consuming {} note(s)", list_of_note_ids.len());
+        if !list_of_notes.is_empty() {
+            println!("Bob consuming {} note(s)", list_of_notes.len());
             let transaction_request = TransactionRequestBuilder::new()
-                .build_consume_notes(list_of_note_ids)
+                .input_notes(list_of_notes)
+                .build()
                 .unwrap();
 
             let tx_id = client

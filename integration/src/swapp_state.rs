@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use miden_objects::account::AccountId;
+use miden_protocol::account::AccountId;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;

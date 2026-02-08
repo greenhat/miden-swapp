@@ -7,13 +7,13 @@ use anyhow::{Context, Result};
 use miden_client::{
     account::component::{BasicFungibleFaucet, BasicWallet},
     auth::AuthSecretKey,
-    note::NoteType,
+    note::{Note, NoteType},
     transaction::{OutputNote, TransactionRequestBuilder},
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_lib::account::auth::AuthRpoFalcon512;
-use miden_objects::{
+use miden_standards::account::auth::AuthFalcon512Rpo;
+use miden_protocol::{
     account::{AccountBuilder, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
     note::{NoteAssets, NoteDetails, NoteTag},
@@ -78,12 +78,12 @@ async fn main() -> Result<()> {
     let decimals = 8;
     let max_supply = Felt::new(1_000_000);
 
-    let key_pair_faucet1 = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_faucet1 = AuthSecretKey::new_falcon512_rpo();
 
     let faucet1_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_faucet1.public_key().to_commitment(),
         ))
         .with_component(BasicFungibleFaucet::new(symbol_usdt, decimals, max_supply).unwrap())
@@ -101,12 +101,12 @@ async fn main() -> Result<()> {
 
     let symbol_eth = TokenSymbol::new("ETH").unwrap();
 
-    let key_pair_faucet2 = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_faucet2 = AuthSecretKey::new_falcon512_rpo();
 
     let faucet2_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_faucet2.public_key().to_commitment(),
         ))
         .with_component(BasicFungibleFaucet::new(symbol_eth, decimals, max_supply).unwrap())
@@ -132,12 +132,12 @@ async fn main() -> Result<()> {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair_alice = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_alice = AuthSecretKey::new_falcon512_rpo();
 
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_alice.public_key().to_commitment(),
         ))
         .with_component(BasicWallet)
@@ -153,12 +153,12 @@ async fn main() -> Result<()> {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair_bob = AuthSecretKey::new_rpo_falcon512();
+    let key_pair_bob = AuthSecretKey::new_falcon512_rpo();
 
     let bob_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_auth_component(AuthRpoFalcon512::new(
+        .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_bob.public_key().to_commitment(),
         ))
         .with_component(BasicWallet)
@@ -228,12 +228,18 @@ async fn main() -> Result<()> {
         let consumable_notes = client
             .get_consumable_notes(Some(alice_account.id()))
             .await?;
-        let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
+        let list_of_notes: Vec<Note> = consumable_notes
+            .into_iter()
+            .filter_map(|(record, _)| {
+                let note: Result<Note, _> = record.try_into();
+                note.ok()
+            })
+            .collect();
 
-        if !list_of_note_ids.is_empty() {
-            println!("Alice consuming {} note(s)", list_of_note_ids.len());
+        if !list_of_notes.is_empty() {
+            println!("Alice consuming {} note(s)", list_of_notes.len());
             let transaction_request = TransactionRequestBuilder::new()
-                .build_consume_notes(list_of_note_ids)
+                .build_consume_notes(list_of_notes)
                 .unwrap();
 
             let tx_id = client
@@ -252,12 +258,18 @@ async fn main() -> Result<()> {
         client.sync_state().await?;
 
         let consumable_notes = client.get_consumable_notes(Some(bob_account.id())).await?;
-        let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
+        let list_of_notes: Vec<Note> = consumable_notes
+            .into_iter()
+            .filter_map(|(record, _)| {
+                let note: Result<Note, _> = record.try_into();
+                note.ok()
+            })
+            .collect();
 
-        if !list_of_note_ids.is_empty() {
-            println!("Bob consuming {} note(s)", list_of_note_ids.len());
+        if !list_of_notes.is_empty() {
+            println!("Bob consuming {} note(s)", list_of_notes.len());
             let transaction_request = TransactionRequestBuilder::new()
-                .build_consume_notes(list_of_note_ids)
+                .build_consume_notes(list_of_notes)
                 .unwrap();
 
             let tx_id = client
@@ -389,11 +401,11 @@ async fn main() -> Result<()> {
     // but for swap notes that create dynamic P2ID and remainder notes,
     // the client will discover these from the transaction execution
 
-    // Build consume transaction using unauthenticated_input_notes with note args
-    // The swap note is public and can be consumed by anyone
+    // Build consume transaction using input_notes with note args
+    // v0.13: input_notes replaces unauthenticated_input_notes
     // We pass Some(note_args) to specify the input_amount
     let consume_request = TransactionRequestBuilder::new()
-        .unauthenticated_input_notes([(swap_note.clone(), Some(note_args))])
+        .input_notes([(swap_note.clone(), Some(note_args))])
         .expected_future_notes(expected_future_notes)
         .build()
         .context("Failed to build consume note transaction request")?;
