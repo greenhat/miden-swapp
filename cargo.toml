@@ -7,4 +7,4 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-miden = { version = "0.9" }
+miden = { git = "https://github.com/miden-lang/miden.git", branch = "compiler-next" }
