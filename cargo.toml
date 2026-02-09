@@ -1,12 +1,12 @@
 [workspace]
 members = [
+    "integration",
+]
+exclude = [
     "contracts/swapp-note",
     "contracts/basic-wallet",
-    "integration"
 ]
 resolver = "2"
-edition = "2021"
 
 [workspace.dependencies]
 miden = { version = "0.9" }
-
