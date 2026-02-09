@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use cargo_miden::{run, OutputType};
 use miden_client::{
     account::{
-        component::{AuthFalcon512Rpo, BasicWallet, NoAuth},
+        component::{BasicWallet, NoAuth},
         Account, AccountId, AccountStorageMode, AccountType, StorageSlot,
     },
     auth::{AuthSecretKey, PublicKeyCommitment},
@@ -24,6 +24,7 @@ use miden_core::Felt;
 use miden_mast_package::Package;
 use miden_protocol::account::{component::InitStorageData, AccountBuilder, AccountComponent};
 use miden_protocol::asset::Asset;
+use miden_standards::account::auth::AuthFalcon512Rpo;
 use rand::{Rng, RngCore};
 
 /// Test setup configuration containing initialized client and keystore
@@ -362,7 +363,7 @@ pub async fn create_basic_wallet_account(
 /// # Returns
 /// A `NoteTag` configured for P2ID (Pay-to-ID) local usage
 pub fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
-    NoteTag::from_account_id(account_id)
+    NoteTag::with_account_target(account_id)
 }
 
 /// Helper function to compute P2ID tag as Felt for use in note inputs
@@ -376,9 +377,7 @@ pub fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
 /// A `Felt` containing the P2ID tag value for the specified account
 pub fn compute_p2id_tag_felt(account_id: AccountId) -> Felt {
     let p2id_tag = compute_p2id_tag_for_local_account(account_id);
-    let p2id_tag_u32 = match p2id_tag {
-        NoteTag::LocalAny(v) => v,
-        _ => panic!("Expected LocalAny tag"),
-    };
-    Felt::new(p2id_tag_u32 as u64)
+    // In v0.13, NoteTag is a newtype wrapper around u32
+    // We can convert it using Into<u32>
+    Felt::new(u32::from(p2id_tag) as u64)
 }

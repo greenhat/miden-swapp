@@ -13,28 +13,27 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_lib::note::{utils::build_p2id_recipient, WellKnownNote};
-use miden_objects::{
+use miden_protocol::{
     account::AccountId,
     asset::{Asset, FungibleAsset},
+    note::{NoteAttachment, NoteAttachmentScheme},
 };
+use miden_standards::note::{utils::build_p2id_recipient, WellKnownNote};
 use miden_testing::{Auth, MockChain};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// Compute the P2ID tag for a local account
 fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
-    NoteTag::from_account_id(account_id)
+    NoteTag::with_account_target(account_id)
 }
 
 /// Helper function to compute P2ID tag as Felt for use in note inputs
 /// Returns the tag value as a Felt that can be directly added to note_inputs
 fn compute_p2id_tag_felt(account_id: AccountId) -> Felt {
     let p2id_tag = compute_p2id_tag_for_local_account(account_id);
-    let p2id_tag_u32 = match p2id_tag {
-        NoteTag::LocalAny(v) => v,
-        _ => panic!("Expected LocalAny tag"),
-    };
-    Felt::new(p2id_tag_u32 as u64)
+    // In v0.13, NoteTag is a newtype wrapper around u32
+    // We can convert it using Into<u32>
+    Felt::new(u32::from(p2id_tag) as u64)
 }
 
 #[tokio::test]
@@ -173,14 +172,19 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     // The key is the hash of the note creation parameters, and the value contains the full parameters
     let tag = compute_p2id_tag_for_local_account(alice.id());
     let aux = Felt::new(25);
-    let execution_hint = NoteExecutionHint::none();
+    let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
 
     // Add the asset (4 Felts = 1 Word)
     let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
 
     let note_assets = NoteAssets::new(vec![asset.into()])?;
 
-    let note_metadata = NoteMetadata::new(bob.id(), NoteType::Public, tag, execution_hint, aux)?;
+    // In v0.13, create metadata and attach the aux value using NoteAttachment
+    // The aux value (25 ETH amount) is wrapped in a Word attachment
+    let aux_word = Word::from([aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, tag).with_attachment(attachment);
 
     let p2id_note = Note::new(note_assets, note_metadata, recipient);
 
@@ -417,7 +421,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     // Prepare the advice map for the P2ID note
     let tag = compute_p2id_tag_for_local_account(alice.id());
     let aux = Felt::new(25);
-    let execution_hint = NoteExecutionHint::none();
+    let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
 
     // Add the asset (4 Felts = 1 Word)
     let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
@@ -425,7 +429,11 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     let note_assets = NoteAssets::new(vec![asset.into()])?;
 
     // P2ID note should also be private to match privacy expectations
-    let note_metadata = NoteMetadata::new(bob.id(), NoteType::Private, tag, execution_hint, aux)?;
+    // In v0.13, attach the aux value using NoteAttachment
+    let aux_word = Word::from([aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Private, tag).with_attachment(attachment);
 
     let p2id_note = Note::new(note_assets, note_metadata, recipient);
 
@@ -665,19 +673,16 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     let p2id_recipient = build_p2id_recipient(alice.id(), p2id_serial_num)?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
-    let p2id_aux = Felt::new(15); // input_amount
-    let p2id_execution_hint = NoteExecutionHint::none();
+    let p2id_aux = Felt::new(15); // input_amount = 15 ETH
 
     let p2id_asset = FungibleAsset::new(eth_faucet.id(), 15)?; // 15 ETH
     let p2id_note_assets = NoteAssets::new(vec![p2id_asset.into()])?;
 
-    let p2id_note_metadata = NoteMetadata::new(
-        bob.id(),
-        NoteType::Public,
-        p2id_tag,
-        p2id_execution_hint,
-        p2id_aux,
-    )?;
+    // Attach aux value (15) to the metadata
+    let aux_word = Word::from([p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, p2id_tag).with_attachment(attachment);
 
     let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient);
 
@@ -720,16 +725,15 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         remainder_note_inputs_obj,
     );
 
-    // Create metadata for remainder note
+    // Create metadata for remainder note with aux attachment
     let remainder_tag = swap_note.metadata().tag();
     let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
-    let remainder_note_metadata = NoteMetadata::new(
-        bob.id(),
-        NoteType::Public,
-        remainder_tag,
-        NoteExecutionHint::none(),
-        remainder_aux,
-    )?;
+
+    // Attach aux value (30) to the remainder note
+    let aux_word = Word::from([remainder_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let remainder_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, remainder_tag).with_attachment(attachment);
 
     // Create assets for remainder note: 20 USDC (50 - 30 = 20)
     let remainder_asset = FungibleAsset::new(usdc_faucet.id(), 20)?;
@@ -994,13 +998,12 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
         let p2id_aux = Felt::new(input_amount);
         let p2id_asset = FungibleAsset::new(eth_faucet.id(), input_amount)?;
         let p2id_note_assets = NoteAssets::new(vec![p2id_asset.into()])?;
-        let p2id_note_metadata = NoteMetadata::new(
-            bob.id(),
-            NoteType::Public,
-            p2id_tag,
-            NoteExecutionHint::none(),
-            p2id_aux,
-        )?;
+
+        // Attach aux value to the metadata
+        let aux_word = Word::from([p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+        let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+        let p2id_note_metadata =
+            NoteMetadata::new(bob.id(), NoteType::Public, p2id_tag).with_attachment(attachment);
         let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient);
 
         let mut expected_notes = vec![OutputNote::Full(p2id_note.into())];
@@ -1043,13 +1046,13 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
 
             let remainder_tag = swap_note.metadata().tag();
             let remainder_aux = Felt::new(offered_out);
-            let remainder_note_metadata = NoteMetadata::new(
-                bob.id(),
-                NoteType::Public,
-                remainder_tag,
-                NoteExecutionHint::none(),
-                remainder_aux,
-            )?;
+
+            // Attach aux value to the remainder note metadata
+            let aux_word = Word::from([remainder_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+            let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+            let remainder_note_metadata =
+                NoteMetadata::new(bob.id(), NoteType::Public, remainder_tag)
+                    .with_attachment(attachment);
 
             let remainder_asset = FungibleAsset::new(usdc_faucet.id(), remaining_usdc)?;
             let remainder_note_assets = NoteAssets::new(vec![remainder_asset.into()])?;
@@ -1337,13 +1340,12 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     let alice_p2id_aux = Felt::new(50); // 50 USDC
     let alice_p2id_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
     let alice_p2id_note_assets = NoteAssets::new(vec![alice_p2id_asset.into()])?;
-    let alice_p2id_note_metadata = NoteMetadata::new(
-        bob.id(),
-        NoteType::Public,
-        alice_p2id_tag,
-        NoteExecutionHint::none(),
-        alice_p2id_aux,
-    )?;
+
+    // Attach aux value to Alice's P2ID note
+    let aux_word = Word::from([alice_p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let alice_p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, alice_p2id_tag).with_attachment(attachment);
     let alice_p2id_note = Note::new(
         alice_p2id_note_assets,
         alice_p2id_note_metadata,
@@ -1364,13 +1366,12 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     let charlie_p2id_aux = Felt::new(25); // 25 ETH
     let charlie_p2id_asset = FungibleAsset::new(eth_faucet.id(), 25)?;
     let charlie_p2id_note_assets = NoteAssets::new(vec![charlie_p2id_asset.into()])?;
-    let charlie_p2id_note_metadata = NoteMetadata::new(
-        bob.id(),
-        NoteType::Public,
-        charlie_p2id_tag,
-        NoteExecutionHint::none(),
-        charlie_p2id_aux,
-    )?;
+
+    // Attach aux value to Charlie's P2ID note
+    let aux_word = Word::from([charlie_p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let charlie_p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, charlie_p2id_tag).with_attachment(attachment);
     let charlie_p2id_note = Note::new(
         charlie_p2id_note_assets,
         charlie_p2id_note_metadata,
@@ -1506,12 +1507,7 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
 
     // Compute proper P2ID tag for Alice (who will receive the output note)
-    let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
-    let p2id_tag_u32 = match p2id_tag {
-        NoteTag::LocalAny(v) => v,
-        _ => panic!("Expected LocalAny tag"),
-    };
-    let p2id_tag_felt = Felt::new(p2id_tag_u32 as u64);
+    let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
 
     let note_inputs = vec![
         // Requested Asset: 25 ETH
@@ -1634,12 +1630,7 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
 
     // STEP 4: Create swap note (Alice wants 25 ETH max)
     // Compute proper P2ID tag for Alice (who will receive the output note)
-    let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
-    let p2id_tag_u32 = match p2id_tag {
-        NoteTag::LocalAny(v) => v,
-        _ => panic!("Expected LocalAny tag"),
-    };
-    let p2id_tag_felt = Felt::new(p2id_tag_u32 as u64);
+    let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
 
     let note_inputs = vec![
         eth_faucet.id().prefix().into(),

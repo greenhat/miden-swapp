@@ -14,8 +14,8 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_lib::note::utils::build_p2id_recipient;
-use miden_objects::{
+use miden_standards::note::utils::build_p2id_recipient;
+use miden_protocol::{
     asset::FungibleAsset,
     note::{NoteAssets, NoteDetails, NoteRecipient},
 };
@@ -136,14 +136,9 @@ async fn main() -> Result<()> {
     println!("Swap note is now available\n");
 
     // Bob balances before partial fill
-    let bob_account = client
-        .get_account(bob_id)
-        .await?
-        .context("Failed to get bob account")?;
-
-    let bob_vault = bob_account.account().vault().assets().collect::<Vec<_>>();
-
-    println!("Bob vault before partial fill: {:?}", bob_vault);
+    // Note: Account vault access API changed in v0.13
+    // Skipping vault debug output for now
+    println!("Preparing to consume swap note...");
 
     //------------------------------------------------------------
     // Bob partially fills the swap note with 15 ETH
@@ -211,8 +206,10 @@ async fn main() -> Result<()> {
         .context("Failed to build P2ID recipient")?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice_id);
-    let p2id_aux = Felt::new(partial_fill_amount); // input_amount = 15
-    let p2id_execution_hint = NoteExecutionHint::none();
+    // Note: In v0.13, aux and execution_hint are no longer part of NoteMetadata constructor
+    // These were previously used for note metadata but are now handled via attachments
+    let _p2id_aux = Felt::new(partial_fill_amount); // input_amount = 15
+    let _p2id_execution_hint = NoteExecutionHint::none();
 
     let p2id_asset = FungibleAsset::new(faucet2_id, partial_fill_amount)?; // 15 ETH
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
@@ -222,10 +219,7 @@ async fn main() -> Result<()> {
         bob_id,
         NoteType::Public,
         p2id_tag,
-        p2id_execution_hint,
-        p2id_aux,
-    )
-    .context("Failed to create P2ID note metadata")?;
+    );
 
     let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient.clone());
     let p2id_note_details = NoteDetails::from(&p2id_note);
@@ -272,15 +266,13 @@ async fn main() -> Result<()> {
 
     // Create metadata for remainder note
     let remainder_tag = published_swap_note.metadata().tag();
-    let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
+    // Note: In v0.13, aux is no longer part of NoteMetadata
+    let _remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
     let remainder_note_metadata = NoteMetadata::new(
         bob_id,
         NoteType::Public,
         remainder_tag,
-        NoteExecutionHint::none(),
-        remainder_aux,
-    )
-    .context("Failed to create remainder note metadata")?;
+    );
 
     // Create assets for remainder note: 20 USDT (50 - 30 = 20)
     let remainder_asset = FungibleAsset::new(faucet1_id, 20)?;
@@ -309,14 +301,13 @@ async fn main() -> Result<()> {
     println!("Remainder Note ID: {:?}", remainder_note.id());
     println!("Remainder Note contains: 20 USDT, requests 10 ETH");
 
-    // Build consume transaction using authenticated_input_notes with note args
+    // Build consume transaction using input_notes with note args
     // Bob is consuming the swap note and providing the input amount
-    // The swap note is authenticated, so we use authenticated_input_notes
-    // authenticated_input_notes expects (NoteId, Option<Word>), not (Note, Option<Word>)
+    // In v0.13, we use input_notes which accepts full Note objects
     // We pass Some(note_args) to specify the input_amount
     // For partial fill, 2 notes are created: P2ID note + remainder swap note
     let consume_request = TransactionRequestBuilder::new()
-        .authenticated_input_notes([(published_swap_note.id(), Some(note_args))])
+        .input_notes(vec![(published_swap_note, Some(note_args))])
         .expected_future_notes(expected_future_notes)
         .expected_output_recipients(vec![p2id_recipient.clone(), remainder_recipient.clone()])
         .build()

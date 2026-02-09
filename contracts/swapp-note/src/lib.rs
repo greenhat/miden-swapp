@@ -40,7 +40,7 @@ fn run(arg: Word, account: &mut Account) {
 
     // Get executing account ID (the note consumer)
     let executing_account_id = active_account::get_id();
-    let swapp_note_creator_id = AccountId::from(inputs[4], inputs[5]);
+    let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
 
     if swapp_note_creator_id == executing_account_id {
         // Note creator is consuming their own note - receive assets back
@@ -152,7 +152,7 @@ fn run(arg: Word, account: &mut Account) {
         ]));
         let remainder_offered_asset = Asset::new(remainder_offered_asset_reversed.inner.reverse());
 
-        let swapp_note_creator_id = AccountId::from(inputs[4], inputs[5]);
+        let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
 
         let inputs = active_note::get_inputs();
         let tag = inputs[7];
@@ -256,7 +256,12 @@ fn create_p2id_note(
     );
 
     // Create the note using output_note::create
-    let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
+    let note_idx = output_note::create(tag, note_type, recipient);
+    output_note::set_word_attachment(
+        note_idx,
+        Felt::from(0),
+        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
+    );
 
     if input_asset.inner[0] != felt!(0) {
         account.move_asset_to_note(input_asset.clone(), note_idx)
@@ -286,7 +291,12 @@ fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: &Asset, padded_
     );
 
     // Create the note using output_note::create
-    let note_idx = output_note::create(tag, aux, note_type, execution_hint, recipient);
+    let note_idx = output_note::create(tag, note_type, recipient);
+    output_note::set_word_attachment(
+        note_idx,
+        felt!(0),
+        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
+    );
 
     output_note::add_asset(offered_asset.clone(), note_idx);
 }

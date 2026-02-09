@@ -11,11 +11,11 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_lib::note::utils::build_p2id_recipient;
-use miden_objects::{
-    asset::FungibleAsset,
+use miden_protocol::{
+    asset::{Asset, FungibleAsset},
     note::{NoteAssets, NoteDetails},
 };
+use miden_standards::note::utils::build_p2id_recipient;
 use std::{path::Path, sync::Arc};
 use tokio::time::Duration;
 
@@ -131,14 +131,9 @@ async fn main() -> Result<()> {
     println!("Swap note is now available\n");
 
     //bob balances before full fill
-    let bob_account = client
-        .get_account(bob_id)
-        .await?
-        .context("Failed to get bob account")?;
-
-    let bob_vault = bob_account.account().vault().assets().collect::<Vec<_>>();
-
-    println!("Bob vault before full fill: {:?}", bob_vault);
+    // Note: Account vault access API changed in v0.13
+    // Skipping vault debug output for now
+    println!("Preparing to consume swap note...");
 
     //------------------------------------------------------------
     // Bob fully fills the swap note with 25 ETH
@@ -200,21 +195,15 @@ async fn main() -> Result<()> {
         .context("Failed to build P2ID recipient")?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice_id);
-    let p2id_aux = Felt::new(full_fill_amount);
-    let p2id_execution_hint = NoteExecutionHint::none();
+    // Note: In v0.13, aux and execution_hint are no longer part of NoteMetadata constructor
+    let _p2id_aux = Felt::new(full_fill_amount);
+    let _p2id_execution_hint = NoteExecutionHint::none();
 
     let p2id_asset = FungibleAsset::new(faucet2_id, full_fill_amount)?;
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
         .context("Failed to create P2ID note assets")?;
 
-    let p2id_note_metadata = NoteMetadata::new(
-        bob_id,
-        NoteType::Public,
-        p2id_tag,
-        p2id_execution_hint,
-        p2id_aux,
-    )
-    .context("Failed to create P2ID note metadata")?;
+    let p2id_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, p2id_tag);
 
     // Construct the P2ID note and convert to NoteDetails for expected_future_notes
     // This is required so the advice provider has the note details when the script creates it
@@ -232,11 +221,9 @@ async fn main() -> Result<()> {
     println!("Sender: {:?}", p2id_note.metadata().sender());
     println!("Note Type: {:?}", p2id_note.metadata().note_type());
     println!("Tag: {:?}", p2id_note.metadata().tag());
-    println!("Aux: {:?}", p2id_note.metadata().aux());
-    println!(
-        "Execution Hint: {:?}",
-        p2id_note.metadata().execution_hint()
-    );
+    // Note: In v0.13, aux and execution_hint are no longer directly accessible
+    // println!("Aux: {:?}", p2id_note.metadata().aux());
+    // println!("Execution Hint: {:?}", p2id_note.metadata().execution_hint());
 
     // Print recipient
     println!("\n--- Recipient ---");
@@ -255,23 +242,22 @@ async fn main() -> Result<()> {
     println!("Number of assets: {}", assets.num_assets());
     for (idx, asset) in assets.iter().enumerate() {
         println!("Asset {}: {:?}", idx, asset);
-        if let miden_objects::asset::Asset::Fungible(fa) = asset {
+        if let Asset::Fungible(fa) = asset {
             println!("  Faucet ID: {:?}", fa.faucet_id());
             println!("  Amount: {}", fa.amount());
         }
     }
     // Print NoteDetails structure
 
-    // Build consume transaction using authenticated_input_notes with note args
+    // Build consume transaction using input_notes with note args
     // Bob is consuming the swap note and providing the input amount
-    // The swap note is authenticated, so we use authenticated_input_notes
-    // authenticated_input_notes expects (NoteId, Option<Word>), not (Note, Option<Word>)
+    // In v0.13, we use input_notes which accepts full Note objects
     // We pass Some(note_args) to specify the input_amount
     // For full fill, only 1 P2ID note is created (no remainder note)
     // The P2ID note will be created dynamically by the swap script, so we don't need to specify it
     // The client will automatically track notes created by the script
     let consume_request = TransactionRequestBuilder::new()
-        .authenticated_input_notes([(published_swap_note.id(), Some(note_args))])
+        .input_notes(vec![(published_swap_note, Some(note_args))])
         .expected_future_notes(expected_future_notes)
         .expected_output_recipients(vec![p2id_recipient.clone()])
         .build()
@@ -291,9 +277,48 @@ async fn main() -> Result<()> {
     // IMPORTANT: Wait for transaction to be included in a block before proceeding
     // This ensures the transaction is fully processed and the database state is consistent
     // Wait a bit for transaction to be submitted
+    println!("\nWaiting for transaction to be processed...");
     tokio::time::sleep(Duration::from_secs(60)).await;
     client.sync_state().await?;
     println!("Full fill completed\n");
+
+    //------------------------------------------------------------
+    // STEP 8: Alice directly consumes the P2ID note (25 ETH)
+    //------------------------------------------------------------
+    println!("[STEP 8] Alice directly consuming the expected P2ID note (25 ETH)");
+
+    println!("\nExpected P2ID Note ID: {:?}", p2id_note.id().to_hex());
+    println!("Attempting to consume it directly...");
+
+    // Try to consume the P2ID note directly using its ID
+    // The note should be on-chain if everything worked correctly
+    // In v0.13, we use input_notes with full Note objects
+    let alice_consume_tx = TransactionRequestBuilder::new()
+        .input_notes(vec![(p2id_note.clone(), None)])
+        .build()
+        .context("Failed to build Alice's consume transaction")?;
+
+    match client
+        .submit_new_transaction(alice_id, alice_consume_tx)
+        .await
+    {
+        Ok(alice_tx_id) => {
+            println!(
+                "✅ SUCCESS! Alice consumed the P2ID note. TX: {:?}",
+                alice_tx_id
+            );
+            println!("This confirms the output note WAS sent to chain!");
+
+            // Wait and sync
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            client.sync_state().await?;
+        }
+        Err(e) => {
+            println!("❌ FAILED! Alice could not consume the P2ID note");
+            println!("Error: {:?}", e);
+            println!("This indicates the output note was NOT sent to chain!");
+        }
+    }
 
     println!("\n=== Test Complete ===");
 
