@@ -9,173 +9,180 @@ use crate::bindings::Account;
 use alloc::vec::Vec;
 use miden::*;
 
-/// Swapp Note Script
-///
-/// Implements a partially-fillable swap note for DEX functionality.
-///
-/// **Note Arg (via `arg` parameter - provided by note consumer):**
-/// - Position 0: input_amount: Felt (single Felt value for amount)
-/// - Position 1: inflight_amount: Felt (single Felt value for amount)
-/// - Position 2: 0: Felt (unused)
-/// - Position 3: 0: Felt (unused)
-/// arg structure: [input_amount, inflight_amount, 0, 0]
-///
-/// **Note Inputs (via `active_note::get_inputs()` - stored when note is created):**
-/// - Positions 0-3: Requested Asset Word (4 Felts)
-///   - inputs[0]: requested_asset_id_prefix (Felt)
-///   - inputs[1]: requested_asset_id_suffix (Felt)
-///   - inputs[2]: padding (0, Felt)
-///   - inputs[3]: requested_asset_total (Felt)
-/// - Positions 4-7: Note Creator AccountId (4 Felts)
-///   - inputs[4]: note_creator_account_id_prefix (Felt)
-///   - inputs[5]: note_creator_account_id_suffix (Felt)
-///   - inputs[6]: padding (0, Felt)
-///   - inputs[7]: tag (Felt)
-///
-///
-#[note_script]
-fn run(arg: Word, account: &mut Account) {
-    // Get stored note inputs
-    let inputs = active_note::get_inputs();
+#[note]
+struct SwappNote;
 
-    // Get executing account ID (the note consumer)
-    let executing_account_id = active_account::get_id();
-    let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
-
-    if swapp_note_creator_id == executing_account_id {
-        // Note creator is consuming their own note - receive assets back
-        // Moves all assets from the note into the executing account's vault
-        active_note::add_assets_to_account();
-        return;
-    }
-
-    // Validate that offered_asset_word matches the asset in the active note
-    let note_assets = active_note::get_assets();
-
-    // Check that there is exactly one asset in the note
-    let num_assets = note_assets.len();
-    assert_eq(Felt::from_u32(num_assets as u32), felt!(1));
-
-    // Get the asset from the note
-    let offered_asset = note_assets[0];
-
-    // Extract amounts for calculations
-    let requested_asset_total = inputs[3];
-    let offered_asset_total = offered_asset.inner[0];
-
-    // Get the current note serial number
-    let current_note_serial = active_note::get_serial_number();
-
-    // Extract input_amount from note arg (provided by note consumer)
-    let input_amount = arg[0];
-    let inflight_amount = arg[1];
-    let total_input_amount = input_amount + inflight_amount;
-
-    // Validate input: input_amount must not exceed requested_asset_total
-    let is_valid = if total_input_amount.as_u64() <= requested_asset_total.as_u64() {
-        felt!(1)
-    } else {
-        felt!(0)
-    };
-
-    assert_eq(is_valid, felt!(1));
-
-    // Compute offered output amount proportional to input
-    let input_offered_out =
-        calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
-
-    let inflight_offered_out =
-        calculate_output_amount(offered_asset_total, requested_asset_total, inflight_amount);
-
-    let input_offered_asset = Asset::new(Word::from([
-        input_offered_out,
-        offered_asset.inner[1],
-        offered_asset.inner[2],
-        offered_asset.inner[3],
-    ]));
-
-    account.receive_asset(input_offered_asset);
-
-    // Create routing (P2ID) note, this is the note that will be used to route the requested asset to the note creator
-    let routing_serial = add_word(
-        current_note_serial,
-        Word::from([felt!(1), felt!(1), felt!(1), felt!(1)]),
-    );
-
-    // aux value is the input amount so that the swapp note creator can determine build the note
-    let aux_value = input_amount + inflight_amount;
-    let input_asset_reversed =
-        Asset::new(Word::from([inputs[0], inputs[1], inputs[2], input_amount]));
-    let input_asset = Asset::new(input_asset_reversed.inner.reverse());
-
-    // Add the inflight amount to the p2id note
-    let inflight_asset_reversed = Asset::new(Word::from([
-        inputs[0],
-        inputs[1],
-        inputs[2],
-        inflight_amount,
-    ]));
-    let inflight_asset = Asset::new(inflight_asset_reversed.inner.reverse());
-
-    // Create P2ID note using output_note module
-    create_p2id_note(
-        routing_serial,
-        &input_asset,
-        &inflight_asset,
-        swapp_note_creator_id,
-        aux_value,
-        account,
-    );
-
-    let input_amount = arg[0];
-    let inflight_amount = arg[1];
-    // Compute the total input amount( Need to recalculate this value because earlier one got of stack memory )
-    let total_input_amount = input_amount + inflight_amount;
-    let total_offered_out = input_offered_out + inflight_offered_out;
-
-    // Create remainder swap note in case of partial fill
-    if total_offered_out.as_u64() < offered_asset_total.as_u64() {
-        let remainder_serial = hash_words(&[current_note_serial]).inner;
-        let remainder_aux = total_offered_out;
-
+#[note]
+impl SwappNote {
+    /// Swapp Note Script
+    ///
+    /// Implements a partially-fillable swap note for DEX functionality.
+    ///
+    /// **Note Arg (via `arg` parameter - provided by note consumer):**
+    /// - Position 0: input_amount: Felt (single Felt value for amount)
+    /// - Position 1: inflight_amount: Felt (single Felt value for amount)
+    /// - Position 2: 0: Felt (unused)
+    /// - Position 3: 0: Felt (unused)
+    /// arg structure: [input_amount, inflight_amount, 0, 0]
+    ///
+    /// **Note Inputs (via `active_note::get_inputs()` - stored when note is created):**
+    /// - Positions 0-3: Requested Asset Word (4 Felts)
+    ///   - inputs[0]: requested_asset_id_prefix (Felt)
+    ///   - inputs[1]: requested_asset_id_suffix (Felt)
+    ///   - inputs[2]: padding (0, Felt)
+    ///   - inputs[3]: requested_asset_total (Felt)
+    /// - Positions 4-7: Note Creator AccountId (4 Felts)
+    ///   - inputs[4]: note_creator_account_id_prefix (Felt)
+    ///   - inputs[5]: note_creator_account_id_suffix (Felt)
+    ///   - inputs[6]: padding (0, Felt)
+    ///   - inputs[7]: tag (Felt)
+    ///
+    ///
+    #[note_script]
+    fn run(self, arg: Word, account: &mut Account) {
+        // Get stored note inputs
         let inputs = active_note::get_inputs();
-        let requested_asset_total = inputs[3] - total_input_amount;
-        let remainder_requested_asset =
-            Asset::from([inputs[0], inputs[1], inputs[2], requested_asset_total]);
 
-        let remainder_offered_asset_total = offered_asset_total - total_offered_out;
-        let remainder_offered_asset_reversed = Asset::new(Word::from([
-            offered_asset.inner[3],
-            offered_asset.inner[2],
-            offered_asset.inner[1],
-            remainder_offered_asset_total,
-        ]));
-        let remainder_offered_asset = Asset::new(remainder_offered_asset_reversed.inner.reverse());
-
+        // Get executing account ID (the note consumer)
+        let executing_account_id = active_account::get_id();
         let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
 
-        let inputs = active_note::get_inputs();
-        let tag = inputs[7];
+        if swapp_note_creator_id == executing_account_id {
+            // Note creator is consuming their own note - receive assets back
+            // Moves all assets from the note into the executing account's vault
+            active_note::add_assets_to_account();
+            return;
+        }
 
-        let padded_inputs = vec![
-            remainder_requested_asset.inner[0],
-            remainder_requested_asset.inner[1],
-            remainder_requested_asset.inner[2],
-            remainder_requested_asset.inner[3],
-            swapp_note_creator_id.prefix,
-            swapp_note_creator_id.suffix,
-            felt!(0),
-            tag,
-        ];
+        // Validate that offered_asset_word matches the asset in the active note
+        let note_assets = active_note::get_assets();
 
-        create_swapp_note(
-            remainder_serial,
-            remainder_aux,
-            &remainder_offered_asset,
-            padded_inputs,
+        // Check that there is exactly one asset in the note
+        let num_assets = note_assets.len();
+        assert_eq(Felt::from_u32(num_assets as u32), felt!(1));
+
+        // Get the asset from the note
+        let offered_asset = note_assets[0];
+
+        // Extract amounts for calculations
+        let requested_asset_total = inputs[3];
+        let offered_asset_total = offered_asset.inner[0];
+
+        // Get the current note serial number
+        let current_note_serial = active_note::get_serial_number();
+
+        // Extract input_amount from note arg (provided by note consumer)
+        let input_amount = arg[0];
+        let inflight_amount = arg[1];
+        let total_input_amount = input_amount + inflight_amount;
+
+        // Validate input: input_amount must not exceed requested_asset_total
+        let is_valid = if total_input_amount.as_u64() <= requested_asset_total.as_u64() {
+            felt!(1)
+        } else {
+            felt!(0)
+        };
+
+        assert_eq(is_valid, felt!(1));
+
+        // Compute offered output amount proportional to input
+        let input_offered_out =
+            calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
+
+        let inflight_offered_out =
+            calculate_output_amount(offered_asset_total, requested_asset_total, inflight_amount);
+
+        let input_offered_asset = Asset::new(Word::from([
+            input_offered_out,
+            offered_asset.inner[1],
+            offered_asset.inner[2],
+            offered_asset.inner[3],
+        ]));
+
+        account.receive_asset(input_offered_asset);
+
+        // Create routing (P2ID) note, this is the note that will be used to route the requested asset to the note creator
+        let routing_serial = add_word(
+            current_note_serial,
+            Word::from([felt!(1), felt!(1), felt!(1), felt!(1)]),
         );
+
+        // aux value is the input amount so that the swapp note creator can determine build the note
+        let aux_value = input_amount + inflight_amount;
+        let input_asset_reversed =
+            Asset::new(Word::from([inputs[0], inputs[1], inputs[2], input_amount]));
+        let input_asset = Asset::new(input_asset_reversed.inner.reverse());
+
+        // Add the inflight amount to the p2id note
+        let inflight_asset_reversed = Asset::new(Word::from([
+            inputs[0],
+            inputs[1],
+            inputs[2],
+            inflight_amount,
+        ]));
+        let inflight_asset = Asset::new(inflight_asset_reversed.inner.reverse());
+
+        // Create P2ID note using output_note module
+        create_p2id_note(
+            routing_serial,
+            &input_asset,
+            &inflight_asset,
+            swapp_note_creator_id,
+            aux_value,
+            account,
+        );
+
+        let input_amount = arg[0];
+        let inflight_amount = arg[1];
+        // Compute the total input amount( Need to recalculate this value because earlier one got of stack memory )
+        let total_input_amount = input_amount + inflight_amount;
+        let total_offered_out = input_offered_out + inflight_offered_out;
+
+        // Create remainder swap note in case of partial fill
+        if total_offered_out.as_u64() < offered_asset_total.as_u64() {
+            let remainder_serial = hash_words(&[current_note_serial]).inner;
+            let remainder_aux = total_offered_out;
+
+            let inputs = active_note::get_inputs();
+            let requested_asset_total = inputs[3] - total_input_amount;
+            let remainder_requested_asset =
+                Asset::from([inputs[0], inputs[1], inputs[2], requested_asset_total]);
+
+            let remainder_offered_asset_total = offered_asset_total - total_offered_out;
+            let remainder_offered_asset_reversed = Asset::new(Word::from([
+                offered_asset.inner[3],
+                offered_asset.inner[2],
+                offered_asset.inner[1],
+                remainder_offered_asset_total,
+            ]));
+            let remainder_offered_asset =
+                Asset::new(remainder_offered_asset_reversed.inner.reverse());
+
+            let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
+
+            let inputs = active_note::get_inputs();
+            let tag = inputs[7];
+
+            let padded_inputs = vec![
+                remainder_requested_asset.inner[0],
+                remainder_requested_asset.inner[1],
+                remainder_requested_asset.inner[2],
+                remainder_requested_asset.inner[3],
+                swapp_note_creator_id.prefix,
+                swapp_note_creator_id.suffix,
+                felt!(0),
+                tag,
+            ];
+
+            create_swapp_note(
+                remainder_serial,
+                remainder_aux,
+                &remainder_offered_asset,
+                padded_inputs,
+            );
+        }
+        //assert_eq(felt!(0), felt!(1));
     }
-    //assert_eq(felt!(0), felt!(1));
 }
 
 ///

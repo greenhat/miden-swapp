@@ -7,7 +7,7 @@
 //
 // extern crate alloc;
 
-use miden::{component, output_note, Asset, NoteIdx};
+use miden::{Asset, NoteIdx, component, output_note};
 
 #[component]
 struct MyAccount;
