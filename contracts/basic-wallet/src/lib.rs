@@ -1,6 +1,10 @@
-// Do not link against libstd (i.e. anything defined in `std::`)
-#![no_std]
-#![feature(alloc_error_handler)]
+// Allow linking against libstd for this crate when building in the workspace.
+// (Removing `no_std` avoids duplicate allocation/panic lang items when some
+// dependencies pull in `std` during host builds.)
+// Original no-std directives kept for reference:
+// // Do not link against libstd (i.e. anything defined in `std::`)
+// #![no_std]
+// #![feature(alloc_error_handler)]
 
 // However, we could still use some standard library types while
 // remaining no-std compatible, if we uncommented the following lines:
