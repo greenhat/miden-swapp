@@ -61,6 +61,14 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     println!("ETH Faucet: {:?}", eth_faucet.id());
     println!("  Version: {:?}", eth_faucet.id().version());
 
+    // Print the prefix and suffix of the ETH faucet
+    println!("ETH Faucet prefix: {:?}", eth_faucet.id().prefix());
+    println!("ETH Faucet suffix: {:?}", eth_faucet.id().suffix());
+
+    // Print the prefix and suffix of the USDC faucet
+    println!("USDC Faucet prefix: {:?}", usdc_faucet.id().prefix());
+    println!("USDC Faucet suffix: {:?}", usdc_faucet.id().suffix());
+
     // STEP 2: Create wallets with initial assets
     println!("\nCreating Alice and Bob wallets with initial assets...");
     let alice = builder.add_existing_wallet_with_assets(
@@ -105,6 +113,8 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
 
     // Compute proper P2ID tag for Alice (who will receive the output note)
     let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
+    println!("P2ID tag felt: {:?}", p2id_tag_felt);
 
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH

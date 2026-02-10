@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { workspace = true }
+miden = { version = "0.9" }
 
 
 # Miden dependencies for cargo-miden build/linking

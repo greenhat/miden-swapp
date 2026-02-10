@@ -40,6 +40,9 @@ impl SwappNote {
     ///
     #[note_script]
     fn run(self, arg: Word, account: &mut Account) {
+        let metadata = active_note::get_metadata();
+        assert_eq(felt!(0), felt!(1));
+
         // Get stored note inputs
         let inputs = active_note::get_inputs();
 
@@ -131,6 +134,8 @@ impl SwappNote {
             aux_value,
             account,
         );
+
+        assert_eq(felt!(0), felt!(1));
 
         let input_amount = arg[0];
         let inflight_amount = arg[1];
@@ -228,6 +233,7 @@ fn create_p2id_note(
     let inputs = active_note::get_inputs();
     let tag = inputs[7];
     let tag = Tag::from(tag);
+
     // Create a tag for the P2ID note - LocalAny with payload 0
     // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
     //let tag = Tag::from(Felt::from_u32(0xC0000000));
@@ -235,6 +241,8 @@ fn create_p2id_note(
     // Create a same note type as the active note
     //let note_type = get_note_type();
     let note_type = get_note_type();
+
+    assert_eq(felt!(0), felt!(1));
 
     // Set execution hint (always executable for now)
     let execution_hint = felt!(0);
@@ -266,7 +274,7 @@ fn create_p2id_note(
     let note_idx = output_note::create(tag, note_type, recipient);
     output_note::set_word_attachment(
         note_idx,
-        Felt::from(0),
+        felt!(0),
         Word::from([aux, felt!(0), felt!(0), felt!(0)]),
     );
 
@@ -330,11 +338,16 @@ fn get_note_tag() -> Tag {
 }
 
 fn get_note_type() -> NoteType {
+    assert_eq(felt!(0), felt!(1));
     let metadata = active_note::get_metadata();
+
+    assert_eq(felt!(0), felt!(1));
     // metadata[1] layout: [sender_id_suffix (56 bits) | note_type (2 bits) | note_execution_hint_tag (6 bits)]
     // Based on merge_id_type_and_hint_tag: type_bits << 6 | tag_bits
     // Extract note_type: left shift by 56 bits to move note_type to positions 62-63, then right shift by 62 to get it at positions 0-1
     let second_felt = metadata[1];
+
+    assert_eq(felt!(0), felt!(1));
 
     // Use u64 bit manipulation with wrapping shifts
     // Convert to u64 for bit manipulation
