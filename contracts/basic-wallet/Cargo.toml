@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # Miden SDK consists of a stdlib (intrinsic functions for VM ops, stdlib functions and types)
 # and transaction kernel API for the Miden rollup
-miden = { version = "0.9" }
+miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }
 
 [package.metadata.component]
 package = "miden:basic-wallet"

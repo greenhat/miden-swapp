@@ -48,14 +48,13 @@ pub async fn setup_client() -> Result<ClientSetup> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path =
-        std::path::PathBuf::from("/Users/vaibhavjindal/miden-swapp/integration/keystore");
+    let project_root = std::env::current_dir().context("Failed to get current directory")?;
+    let keystore_path = project_root.join("integration").join("keystore");
 
     let keystore =
         Arc::new(FilesystemKeyStore::new(keystore_path).context("Failed to initialize keystore")?);
 
-    let store_path =
-        std::path::PathBuf::from("/Users/vaibhavjindal/miden-swapp/integration/store.sqlite3");
+    let store_path = project_root.join("integration").join("store.sqlite3");
 
     let client = ClientBuilder::new()
         .rpc(rpc_client)

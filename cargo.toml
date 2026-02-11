@@ -3,11 +3,11 @@ members = [
 
     "integration"
 ]
-
 exclude = [
-    "contracts/"
+    "contracts/",
 ]
+
 resolver = "2"
 
 [workspace.dependencies]
-miden = { version = "0.9" }
+miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }

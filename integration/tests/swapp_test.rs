@@ -18,9 +18,14 @@ use miden_protocol::{
     asset::{Asset, FungibleAsset},
     note::{NoteAttachment, NoteAttachmentScheme},
 };
-use miden_standards::note::{utils::build_p2id_recipient, WellKnownNote};
+use miden_standards::note::utils::build_p2id_recipient;
 use miden_testing::{Auth, MockChain};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+    time::{self, Duration},
+};
 
 /// Compute the P2ID tag for a local account
 fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
@@ -114,8 +119,6 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     // Compute proper P2ID tag for Alice (who will receive the output note)
     let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
 
-    println!("P2ID tag felt: {:?}", p2id_tag_felt);
-
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
@@ -125,7 +128,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -181,7 +184,12 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     // Prepare the advice map for the P2ID note
     // The key is the hash of the note creation parameters, and the value contains the full parameters
     let tag = compute_p2id_tag_for_local_account(alice.id());
+    println!("Tag: {:?}", tag.as_u32());
     let aux = Felt::new(25);
+    println!("recipient: {:?}", recipient.digest().to_hex());
+
+    println!("serial num: {:?}", serial_num);
+
     let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
 
     // Add the asset (4 Felts = 1 Word)
@@ -193,8 +201,10 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     // The aux value (25 ETH amount) is wrapped in a Word attachment
     let aux_word = Word::from([aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
     let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    println!("Attachment word: {:?}", attachment.content());
+
     let note_metadata =
-        NoteMetadata::new(bob.id(), NoteType::Public, tag).with_attachment(attachment);
+        NoteMetadata::new(bob.id(), NoteType::Public, tag).with_attachment(attachment.clone());
 
     let p2id_note = Note::new(note_assets, note_metadata, recipient);
 
@@ -219,6 +229,11 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let output_notes = executed_transaction.output_notes();
     println!("Output notes created: {}", output_notes.num_notes());
     assert_eq!(output_notes.num_notes(), 1, "Expected exactly 1 P2ID note");
+
+    assert_eq!(
+        output_notes.get_note(0).metadata().attachment().clone(),
+        attachment
+    );
 
     let p2id_note = output_notes.get_note(0);
     println!("P2ID note created: {:?}", p2id_note.id());
@@ -373,7 +388,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Private.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -630,7 +645,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -718,7 +733,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         // Note Creator (positions 4-7): Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         p2id_tag_felt,
     ];
 
@@ -738,6 +753,11 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     // Create metadata for remainder note with aux attachment
     let remainder_tag = swap_note.metadata().tag();
     let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
+
+    println!(
+        "Remainder recipient: {:?}",
+        remainder_recipient.digest().to_hex()
+    );
 
     // Attach aux value (30) to the remainder note
     let aux_word = Word::from([remainder_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
@@ -948,7 +968,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
             Felt::new(25), // requested_asset_total
             alice.id().prefix().into(),
             alice.id().suffix().into(),
-            Felt::ZERO,
+            NoteType::Public.into(),
             // P2ID Tag (position 7): computed tag for Alice
             p2id_tag_felt,
         ];
@@ -1038,7 +1058,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
                 Felt::new(remaining_eth),
                 alice.id().prefix().into(),
                 alice.id().suffix().into(),
-                Felt::ZERO,
+                NoteType::Public.into(),
                 p2id_tag_felt,
             ];
 
@@ -1257,7 +1277,7 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
         // Note Creator: Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         alice_p2id_tag_felt,
     ];
@@ -1294,7 +1314,7 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
         // Note Creator: Charlie
         charlie.id().prefix().into(),
         charlie.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Charlie
         charlie_p2id_tag_felt,
     ];
@@ -1498,22 +1518,41 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
 
     let eth_faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "ETH", 1000, Some(25))?;
 
-    // STEP 2: Create Alice wallet with USDC
+    // STEP 2: Build basic-wallet contract package
+    println!("\nBuilding basic-wallet contract...");
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
+    println!("Basic-wallet contract built successfully.");
+
+    // STEP 3: Create Alice wallet with USDC (using custom wallet)
     println!("\nCreating Alice wallet...");
-    let alice = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
-        [FungibleAsset::new(usdc_faucet.id(), 50)?.into()],
-    )?;
+    let alice_account_cfg = AccountCreationConfig {
+        storage_slots: vec![],
+        ..Default::default()
+    };
+
+    let alice_assets = vec![FungibleAsset::new(usdc_faucet.id(), 50)?.into()];
+
+    let alice = create_testing_account_from_package(
+        account_package.clone(),
+        alice_account_cfg,
+        alice_assets,
+    )
+    .await?;
     println!("Alice: {:?}", alice.id());
 
-    // STEP 3: Build swapp-note contract
+    let _alice_account = builder.add_account(alice.clone());
+
+    // STEP 4: Build swapp-note contract
     println!("\nBuilding swapp-note contract...");
     let swapp_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/swapp-note"),
         true,
     )?);
 
-    // STEP 4: Create swap note
+    // STEP 5: Create swap note
     println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
 
     // Compute proper P2ID tag for Alice (who will receive the output note)
@@ -1528,7 +1567,7 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
         // Note Creator: Alice
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -1549,7 +1588,7 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
 
     builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
 
-    // STEP 5: Alice reclaims her own note
+    // STEP 6: Alice reclaims her own note
     println!("\nBuilding MockChain...");
     let mock_chain = builder.build()?;
 
@@ -1567,7 +1606,7 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
         executed_transaction.measurements().note_execution
     );
 
-    // STEP 6: Verify results
+    // STEP 7: Verify results
     println!("\n=== Verification ===");
 
     // Should have NO output notes (no P2ID, no remainder)
@@ -1649,7 +1688,7 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
         Felt::new(25), // requested_asset_total = 25
         alice.id().prefix().into(),
         alice.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -1674,12 +1713,7 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
 
     // STEP 5: Bob tries to provide MORE than requested (30 > 25) - should fail
     println!("\nBob trying to provide 30 ETH (more than requested 25)...");
-    let note_args = Word::from([
-        Felt::new(30), // input_amount = 30 (INVALID - exceeds requested 25)
-        Felt::ZERO,
-        Felt::ZERO,
-        Felt::ZERO,
-    ]);
+    let note_args = Word::from([Felt::ZERO, Felt::ZERO, Felt::ZERO, Felt::new(30)]);
 
     let mut note_args_map = BTreeMap::new();
     note_args_map.insert(swap_note.id(), note_args);

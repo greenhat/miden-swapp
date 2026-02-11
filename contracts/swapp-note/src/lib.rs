@@ -9,6 +9,115 @@ use crate::bindings::Account;
 use alloc::vec::Vec;
 use miden::*;
 
+fn get_note_tag() -> Tag {
+    let metadata = active_note::get_metadata();
+    Tag::from(metadata.header[2])
+}
+
+/// Add two Words element-wise
+fn add_word(a: Word, b: Word) -> Word {
+    Word::from([a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]])
+}
+
+///
+/// # Arguments
+/// * `offered_total` - Total offered asset amount (Felt)
+/// * `requested_total` - Total requested asset amount (Felt)
+/// * `input_amount` - Input asset amount provided (Felt)
+///
+/// # Returns
+/// Output asset amount proportional to the ratio (Felt)
+fn calculate_output_amount(offered_total: Felt, requested_total: Felt, input_amount: Felt) -> Felt {
+    let precision_factor = Felt::from_u32(100000);
+
+    // For the better precision, we use the two different paths for the calculation
+    if offered_total.as_u64() > requested_total.as_u64() {
+        // Case 1: offered_total > requested_total
+        // Calculate ratio = (offered_total * factor) / requested_total
+        // Then output = (input_amount * ratio) / factor
+        let ratio = (offered_total * precision_factor) / requested_total;
+        return (input_amount * ratio) / precision_factor;
+    } else {
+        // Case 2: offered_total <= requested_total
+        // Direct calculation: (input_amount * offered_total * factor) / (requested_total * factor)
+        let ratio = (requested_total * precision_factor) / offered_total;
+        return (input_amount * precision_factor) / ratio;
+    }
+}
+
+/// Create a P2ID (Pay-to-ID) note
+fn create_p2id_note(
+    serial_num: Word,
+    input_asset: &Asset,
+    inflight_asset: &Asset,
+    recipient_id: AccountId,
+    aux: Felt,
+    account: &mut Account,
+) {
+    let inputs = active_note::get_inputs();
+    let tag = inputs[7];
+    let tag = Tag::from(tag);
+
+    let note_type = NoteType::from(inputs[6]);
+
+    let p2id_note_root_digest = Digest::from_word(Word::new([
+        Felt::from_u64_unchecked(13362761878458161062),
+        Felt::from_u64_unchecked(15090726097241769395),
+        Felt::from_u64_unchecked(444910447169617901),
+        Felt::from_u64_unchecked(3558201871398422326),
+    ]));
+
+    // Create recipient from serial number and account ID
+    let recipient = Recipient::compute(
+        serial_num,
+        p2id_note_root_digest,
+        vec![recipient_id.suffix, recipient_id.prefix],
+    );
+
+    // Create the note using output_note::create
+    let note_idx = output_note::create(tag, note_type, recipient);
+
+    output_note::set_word_attachment(
+        note_idx,
+        felt!(0),
+        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
+    );
+
+    if input_asset.inner[0] != felt!(0) {
+        account.move_asset_to_note(input_asset.clone(), note_idx)
+    }
+
+    output_note::add_asset(inflight_asset.clone(), note_idx);
+}
+/// Create a Swapp note with remainder parameters
+fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: &Asset, padded_inputs: Vec<Felt>) {
+    // Create a tag for the P2ID note - LocalAny with payload 0
+    // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
+    //let tag = Tag::from(Felt::from_u32(0xC0000000));
+    let tag = get_note_tag();
+
+    let inputs = active_note::get_inputs();
+
+    let note_type = NoteType::from(inputs[6]);
+
+    // Create recipient with swapp script and remainder parameters
+    let recipient = Recipient::compute(
+        serial_num,
+        Digest::from_word(active_note::get_script_root()),
+        padded_inputs,
+    );
+
+    // Create the note using output_note::create
+    let note_idx = output_note::create(tag, note_type, recipient);
+    output_note::set_word_attachment(
+        note_idx,
+        felt!(0),
+        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
+    );
+
+    output_note::add_asset(offered_asset.clone(), note_idx);
+}
+
 #[note]
 struct SwappNote;
 
@@ -34,28 +143,18 @@ impl SwappNote {
     /// - Positions 4-7: Note Creator AccountId (4 Felts)
     ///   - inputs[4]: note_creator_account_id_prefix (Felt)
     ///   - inputs[5]: note_creator_account_id_suffix (Felt)
-    ///   - inputs[6]: padding (0, Felt)
+    ///   - inputs[6]: note_type (Felt)
     ///   - inputs[7]: tag (Felt)
     ///
     ///
     #[note_script]
     fn run(self, arg: Word, account: &mut Account) {
-        let metadata = active_note::get_metadata();
-        assert_eq(felt!(0), felt!(1));
-
         // Get stored note inputs
         let inputs = active_note::get_inputs();
 
         // Get executing account ID (the note consumer)
         let executing_account_id = active_account::get_id();
         let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
-
-        if swapp_note_creator_id == executing_account_id {
-            // Note creator is consuming their own note - receive assets back
-            // Moves all assets from the note into the executing account's vault
-            active_note::add_assets_to_account();
-            return;
-        }
 
         // Validate that offered_asset_word matches the asset in the active note
         let note_assets = active_note::get_assets();
@@ -66,6 +165,13 @@ impl SwappNote {
 
         // Get the asset from the note
         let offered_asset = note_assets[0];
+
+        if swapp_note_creator_id == executing_account_id {
+            // Note creator is consuming their own note - receive assets back
+            // Moves all assets from the note into the executing account's vault
+            account.receive_asset(offered_asset);
+            return;
+        }
 
         // Extract amounts for calculations
         let requested_asset_total = inputs[3];
@@ -135,8 +241,6 @@ impl SwappNote {
             account,
         );
 
-        assert_eq(felt!(0), felt!(1));
-
         let input_amount = arg[0];
         let inflight_amount = arg[1];
         // Compute the total input amount( Need to recalculate this value because earlier one got of stack memory )
@@ -168,6 +272,8 @@ impl SwappNote {
             let inputs = active_note::get_inputs();
             let tag = inputs[7];
 
+            let note_type = inputs[6];
+
             let padded_inputs = vec![
                 remainder_requested_asset.inner[0],
                 remainder_requested_asset.inner[1],
@@ -175,9 +281,14 @@ impl SwappNote {
                 remainder_requested_asset.inner[3],
                 swapp_note_creator_id.prefix,
                 swapp_note_creator_id.suffix,
-                felt!(0),
+                note_type,
                 tag,
             ];
+
+            assert_eq(
+                remainder_serial[0],
+                Felt::from_u64_unchecked(8073041323843526112),
+            );
 
             create_swapp_note(
                 remainder_serial,
@@ -186,181 +297,5 @@ impl SwappNote {
                 padded_inputs,
             );
         }
-        //assert_eq(felt!(0), felt!(1));
     }
-}
-
-///
-/// # Arguments
-/// * `offered_total` - Total offered asset amount (Felt)
-/// * `requested_total` - Total requested asset amount (Felt)
-/// * `input_amount` - Input asset amount provided (Felt)
-///
-/// # Returns
-/// Output asset amount proportional to the ratio (Felt)
-fn calculate_output_amount(offered_total: Felt, requested_total: Felt, input_amount: Felt) -> Felt {
-    let precision_factor = Felt::from_u32(100000);
-
-    // For the better precision, we use the two different paths for the calculation
-    if offered_total.as_u64() > requested_total.as_u64() {
-        // Case 1: offered_total > requested_total
-        // Calculate ratio = (offered_total * factor) / requested_total
-        // Then output = (input_amount * ratio) / factor
-        let ratio = (offered_total * precision_factor) / requested_total;
-        return (input_amount * ratio) / precision_factor;
-    } else {
-        // Case 2: offered_total <= requested_total
-        // Direct calculation: (input_amount * offered_total * factor) / (requested_total * factor)
-        let ratio = (requested_total * precision_factor) / offered_total;
-        return (input_amount * precision_factor) / ratio;
-    }
-}
-
-/// Add two Words element-wise
-fn add_word(a: Word, b: Word) -> Word {
-    Word::from([a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]])
-}
-
-/// Create a P2ID (Pay-to-ID) note
-fn create_p2id_note(
-    serial_num: Word,
-    input_asset: &Asset,
-    inflight_asset: &Asset,
-    recipient_id: AccountId,
-    aux: Felt,
-    account: &mut Account,
-) {
-    let inputs = active_note::get_inputs();
-    let tag = inputs[7];
-    let tag = Tag::from(tag);
-
-    // Create a tag for the P2ID note - LocalAny with payload 0
-    // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
-    //let tag = Tag::from(Felt::from_u32(0xC0000000));
-
-    // Create a same note type as the active note
-    //let note_type = get_note_type();
-    let note_type = get_note_type();
-
-    assert_eq(felt!(0), felt!(1));
-
-    // Set execution hint (always executable for now)
-    let execution_hint = felt!(0);
-
-    let p2id_note_root_digest = Digest::from_word(Word::new([
-        Felt::from_u64_unchecked(15783632360113277539),
-        Felt::from_u64_unchecked(7403765918285273520),
-        Felt::from_u64_unchecked(15691985194755641846),
-        Felt::from_u64_unchecked(10399643920503194563),
-    ]));
-
-    // Create recipient from serial number and account ID
-    let recipient = Recipient::compute(
-        serial_num,
-        p2id_note_root_digest,
-        vec![
-            recipient_id.suffix,
-            recipient_id.prefix,
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-            felt!(0),
-        ],
-    );
-
-    // Create the note using output_note::create
-    let note_idx = output_note::create(tag, note_type, recipient);
-    output_note::set_word_attachment(
-        note_idx,
-        felt!(0),
-        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
-    );
-
-    if input_asset.inner[0] != felt!(0) {
-        account.move_asset_to_note(input_asset.clone(), note_idx)
-    }
-
-    output_note::add_asset(inflight_asset.clone(), note_idx);
-}
-/// Create a Swapp note with remainder parameters
-fn create_swapp_note(serial_num: Word, aux: Felt, offered_asset: &Asset, padded_inputs: Vec<Felt>) {
-    // Create a tag for the P2ID note - LocalAny with payload 0
-    // This equals NoteTag::LocalAny(0) in the SDK, which serializes to 0xC0000000
-    //let tag = Tag::from(Felt::from_u32(0xC0000000));
-    let tag = get_note_tag();
-
-    // Create a same note type as the active note
-    //let note_type = get_note_type();
-    let note_type = get_note_type();
-
-    // Set execution hint (always executable for now)
-    let execution_hint = felt!(0);
-
-    // Create recipient with swapp script and remainder parameters
-    let recipient = Recipient::compute(
-        serial_num,
-        Digest::from_word(active_note::get_script_root()),
-        padded_inputs,
-    );
-
-    // Create the note using output_note::create
-    let note_idx = output_note::create(tag, note_type, recipient);
-    output_note::set_word_attachment(
-        note_idx,
-        felt!(0),
-        Word::from([aux, felt!(0), felt!(0), felt!(0)]),
-    );
-
-    output_note::add_asset(offered_asset.clone(), note_idx);
-}
-
-fn get_note_tag() -> Tag {
-    let metadata = active_note::get_metadata();
-    // metadata[2] layout: [note_execution_hint_payload (32 bits) | note_tag (32 bits)]
-    // Based on merge_note_tag_and_hint_payload: (payload << 32) | note_tag
-    // Extract note_tag: it's in the lower 32 bits (bits 0-31)
-
-    let third_felt = metadata[2];
-
-    // Use u64 bit manipulation (same pattern as get_note_type)
-    // Convert to u64 for bit manipulation
-    let third_felt_u64 = third_felt.as_u64();
-
-    // Mask with 0xFFFFFFFF to extract lower 32 bits (note_tag)
-    let tag_u64 = third_felt_u64 & 0xFFFFFFFFu64;
-
-    // Convert back to Felt
-    let tag_felt = Felt::from_u64_unchecked(tag_u64);
-
-    Tag::from(tag_felt)
-}
-
-fn get_note_type() -> NoteType {
-    assert_eq(felt!(0), felt!(1));
-    let metadata = active_note::get_metadata();
-
-    assert_eq(felt!(0), felt!(1));
-    // metadata[1] layout: [sender_id_suffix (56 bits) | note_type (2 bits) | note_execution_hint_tag (6 bits)]
-    // Based on merge_id_type_and_hint_tag: type_bits << 6 | tag_bits
-    // Extract note_type: left shift by 56 bits to move note_type to positions 62-63, then right shift by 62 to get it at positions 0-1
-    let second_felt = metadata[1];
-
-    assert_eq(felt!(0), felt!(1));
-
-    // Use u64 bit manipulation with wrapping shifts
-    // Convert to u64 for bit manipulation
-    let second_felt_u64 = second_felt.as_u64();
-
-    // Shift left by 56 bits to move note_type (at bits 6-7) to positions 62-63
-    let left_shifted_56_u64 = second_felt_u64.wrapping_shl(56);
-
-    // Shift right by 62 bits to move note_type from positions 62-63 to positions 0-1
-    let note_type_u64 = left_shifted_56_u64.wrapping_shr(62);
-
-    // Convert back to Felt
-    let note_type_felt = Felt::from_u64_unchecked(note_type_u64);
-
-    NoteType::from(note_type_felt)
 }
