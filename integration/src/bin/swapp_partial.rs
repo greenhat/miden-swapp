@@ -14,11 +14,11 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_standards::note::utils::build_p2id_recipient;
 use miden_protocol::{
     asset::FungibleAsset,
     note::{NoteAssets, NoteDetails, NoteRecipient},
 };
+use miden_standards::note::utils::build_p2id_recipient;
 use std::{path::Path, sync::Arc};
 use tokio::time::Duration;
 
@@ -100,7 +100,7 @@ async fn main() -> Result<()> {
         // Creator AccountId (Alice)
         alice_id.prefix().into(),
         alice_id.suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -215,11 +215,7 @@ async fn main() -> Result<()> {
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
         .context("Failed to create P2ID note assets")?;
 
-    let p2id_note_metadata = NoteMetadata::new(
-        bob_id,
-        NoteType::Public,
-        p2id_tag,
-    );
+    let p2id_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, p2id_tag);
 
     let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient.clone());
     let p2id_note_details = NoteDetails::from(&p2id_note);
@@ -245,7 +241,7 @@ async fn main() -> Result<()> {
         // Note Creator (positions 4-6): Alice
         alice_id.prefix().into(),
         alice_id.suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice (reusing)
         p2id_tag_felt,
     ];
@@ -268,11 +264,7 @@ async fn main() -> Result<()> {
     let remainder_tag = published_swap_note.metadata().tag();
     // Note: In v0.13, aux is no longer part of NoteMetadata
     let _remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
-    let remainder_note_metadata = NoteMetadata::new(
-        bob_id,
-        NoteType::Public,
-        remainder_tag,
-    );
+    let remainder_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, remainder_tag);
 
     // Create assets for remainder note: 20 USDT (50 - 30 = 20)
     let remainder_asset = FungibleAsset::new(faucet1_id, 20)?;

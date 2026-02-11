@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         // Creator AccountId (Alice)
         alice_id.prefix().into(),
         alice_id.suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];

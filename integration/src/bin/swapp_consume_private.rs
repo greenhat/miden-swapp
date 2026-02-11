@@ -11,11 +11,11 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_standards::note::utils::build_p2id_recipient;
 use miden_protocol::{
     asset::{Asset, FungibleAsset},
     note::{NoteAssets, NoteDetails},
 };
+use miden_standards::note::utils::build_p2id_recipient;
 use std::{path::Path, sync::Arc};
 use tokio::time::Duration;
 
@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         // Creator AccountId (Alice)
         alice_id.prefix().into(),
         alice_id.suffix().into(),
-        Felt::ZERO,
+        NoteType::Private.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
@@ -204,11 +204,7 @@ async fn main() -> Result<()> {
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
         .context("Failed to create P2ID note assets")?;
 
-    let p2id_note_metadata = NoteMetadata::new(
-        bob_id,
-        NoteType::Private,
-        p2id_tag,
-    );
+    let p2id_note_metadata = NoteMetadata::new(bob_id, NoteType::Private, p2id_tag);
 
     // Construct the P2ID note and convert to NoteDetails for expected_future_notes
     // This is required so the advice provider has the note details when the script creates it

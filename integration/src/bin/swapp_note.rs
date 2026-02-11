@@ -12,12 +12,12 @@ use miden_client::{
     Felt, Word,
 };
 use miden_core::FieldElement;
-use miden_standards::account::auth::AuthFalcon512Rpo;
 use miden_protocol::{
     account::{AccountBuilder, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
     note::{NoteAssets, NoteDetails, NoteTag},
 };
+use miden_standards::account::auth::AuthFalcon512Rpo;
 use rand::RngCore;
 use std::{path::Path, sync::Arc};
 use tokio::time::Duration;
@@ -321,7 +321,7 @@ async fn main() -> Result<()> {
         // Creator AccountId (Alice)
         alice_account.id().prefix().into(),
         alice_account.id().suffix().into(),
-        Felt::ZERO,
+        NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
