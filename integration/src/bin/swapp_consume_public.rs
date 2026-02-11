@@ -6,14 +6,14 @@ use integration::swapp_state::SwappTestState;
 
 use anyhow::{Context, Result};
 use miden_client::{
-    note::{Note, NoteAssets as ClientNoteAssets, NoteExecutionHint, NoteMetadata, NoteType},
+    note::{Note, NoteAssets as ClientNoteAssets, NoteMetadata, NoteType},
     transaction::{OutputNote, TransactionRequestBuilder},
     Felt, Word,
 };
 use miden_core::FieldElement;
 use miden_protocol::{
     asset::{Asset, FungibleAsset},
-    note::{NoteAssets, NoteDetails},
+    note::{NoteAssets, NoteAttachment, NoteAttachmentScheme, NoteDetails},
 };
 use miden_standards::note::utils::build_p2id_recipient;
 use std::{path::Path, sync::Arc};
@@ -195,15 +195,18 @@ async fn main() -> Result<()> {
         .context("Failed to build P2ID recipient")?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice_id);
-    // Note: In v0.13, aux and execution_hint are no longer part of NoteMetadata constructor
-    let _p2id_aux = Felt::new(full_fill_amount);
-    let _p2id_execution_hint = NoteExecutionHint::none();
+
+    // Attach aux value (full_fill_amount) to the P2ID note
+    let p2id_aux = Felt::new(full_fill_amount);
+    let aux_word = Word::from([p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
 
     let p2id_asset = FungibleAsset::new(faucet2_id, full_fill_amount)?;
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
         .context("Failed to create P2ID note assets")?;
 
-    let p2id_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, p2id_tag);
+    let p2id_note_metadata =
+        NoteMetadata::new(bob_id, NoteType::Public, p2id_tag).with_attachment(attachment);
 
     // Construct the P2ID note and convert to NoteDetails for expected_future_notes
     // This is required so the advice provider has the note details when the script creates it

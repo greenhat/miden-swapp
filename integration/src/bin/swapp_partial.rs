@@ -6,17 +6,14 @@ use integration::swapp_state::SwappTestState;
 
 use anyhow::{Context, Result};
 use miden_client::{
-    note::{
-        Note, NoteAssets as ClientNoteAssets, NoteExecutionHint, NoteInputs, NoteMetadata,
-        NoteScript, NoteType,
-    },
+    note::{Note, NoteAssets as ClientNoteAssets, NoteInputs, NoteMetadata, NoteScript, NoteType},
     transaction::{OutputNote, TransactionRequestBuilder},
     Felt, Word,
 };
 use miden_core::FieldElement;
 use miden_protocol::{
     asset::FungibleAsset,
-    note::{NoteAssets, NoteDetails, NoteRecipient},
+    note::{NoteAssets, NoteAttachment, NoteAttachmentScheme, NoteDetails, NoteRecipient},
 };
 use miden_standards::note::utils::build_p2id_recipient;
 use std::{path::Path, sync::Arc};
@@ -206,16 +203,18 @@ async fn main() -> Result<()> {
         .context("Failed to build P2ID recipient")?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice_id);
-    // Note: In v0.13, aux and execution_hint are no longer part of NoteMetadata constructor
-    // These were previously used for note metadata but are now handled via attachments
-    let _p2id_aux = Felt::new(partial_fill_amount); // input_amount = 15
-    let _p2id_execution_hint = NoteExecutionHint::none();
+
+    // Attach aux value (partial_fill_amount) to the P2ID note
+    let p2id_aux = Felt::new(partial_fill_amount); // input_amount = 15
+    let aux_word = Word::from([p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
 
     let p2id_asset = FungibleAsset::new(faucet2_id, partial_fill_amount)?; // 15 ETH
     let p2id_note_assets = ClientNoteAssets::new(vec![p2id_asset.into()])
         .context("Failed to create P2ID note assets")?;
 
-    let p2id_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, p2id_tag);
+    let p2id_note_metadata =
+        NoteMetadata::new(bob_id, NoteType::Public, p2id_tag).with_attachment(attachment);
 
     let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient.clone());
     let p2id_note_details = NoteDetails::from(&p2id_note);
@@ -262,9 +261,14 @@ async fn main() -> Result<()> {
 
     // Create metadata for remainder note
     let remainder_tag = published_swap_note.metadata().tag();
-    // Note: In v0.13, aux is no longer part of NoteMetadata
-    let _remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
-    let remainder_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, remainder_tag);
+
+    // Attach aux value (offered_out) to the remainder note
+    let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
+    let remainder_aux_word = Word::from([remainder_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let remainder_attachment =
+        NoteAttachment::new_word(NoteAttachmentScheme::none(), remainder_aux_word);
+    let remainder_note_metadata = NoteMetadata::new(bob_id, NoteType::Public, remainder_tag)
+        .with_attachment(remainder_attachment);
 
     // Create assets for remainder note: 20 USDT (50 - 30 = 20)
     let remainder_asset = FungibleAsset::new(faucet1_id, 20)?;
