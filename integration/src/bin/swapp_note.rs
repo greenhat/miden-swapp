@@ -315,12 +315,12 @@ async fn main() -> Result<()> {
     let note_inputs = vec![
         // Requested Asset Word (ETH)
         faucet2_account.id().prefix().into(),
-        faucet2_account.id().suffix().into(),
+        faucet2_account.id().suffix(),
         Felt::ZERO,
         Felt::new(requested_amount),
         // Creator AccountId (Alice)
         alice_account.id().prefix().into(),
-        alice_account.id().suffix().into(),
+        alice_account.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,

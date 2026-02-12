@@ -24,7 +24,6 @@ use std::{
     collections::BTreeMap,
     path::Path,
     sync::Arc,
-    time::{self, Duration},
 };
 
 /// Compute the P2ID tag for a local account
@@ -103,7 +102,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
         .await?;
     println!("Bob account created: {:?}", bob.id());
 
-    let bob_account = builder.add_account(bob.clone());
+    let _bob_account = builder.add_account(bob.clone());
 
     // STEP 3: Build swapp-note and p2id-note contracts
     println!("\nBuilding swapp-note contract...");
@@ -122,12 +121,12 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
@@ -150,7 +149,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     println!("Swap note created: {:?}", swap_note.id());
 
     // Add note to genesis
-    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
     // STEP 5: Build MockChain and execute transaction
     println!("\nBuilding MockChain...");
@@ -212,7 +211,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.into())])
+        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note)])
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
@@ -287,7 +286,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     assert_eq!(usdc_received.amount(), 50, "Bob should receive 50 USDC");
 
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
-    mock_chain.prove_next_block();
+    let _ = mock_chain.prove_next_block();
 
     let eth_spent = match removed_assets[0] {
         Asset::Fungible(f) => f,
@@ -363,7 +362,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
         .await?;
     println!("Bob account created: {:?}", bob.id());
 
-    let bob_account = builder.add_account(bob.clone());
+    let _bob_account = builder.add_account(bob.clone());
 
     // STEP 3: Build swapp-note contract
     println!("\nBuilding swapp-note contract...");
@@ -382,12 +381,12 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Private.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
@@ -412,7 +411,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     println!("  Note type: {:?}", swap_note.metadata().note_type());
 
     // Add note to genesis
-    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
     // STEP 5: Build MockChain and execute transaction
     println!("\nBuilding MockChain...");
@@ -466,7 +465,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.into())])
+        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note)])
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
@@ -543,7 +542,7 @@ async fn swapp_note_private_full_fill_test() -> anyhow::Result<()> {
     assert_eq!(usdc_received.amount(), 50, "Bob should receive 50 USDC");
 
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
-    mock_chain.prove_next_block();
+    let _ = mock_chain.prove_next_block();
 
     let eth_spent = match removed_assets[0] {
         Asset::Fungible(f) => f,
@@ -620,7 +619,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         .await?;
     println!("Bob account created: {:?}", bob.id());
 
-    let bob_account = builder.add_account(bob.clone());
+    let _bob_account = builder.add_account(bob.clone());
 
     // STEP 3: Build swapp-note and p2id-note contracts
     println!("\nBuilding swapp-note contract...");
@@ -639,12 +638,12 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     let note_inputs = vec![
         // Requested Asset (positions 0-3): 25 ETH
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
@@ -667,11 +666,11 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     println!("Swap note created: {:?}", swap_note.id());
 
     // Add note to genesis
-    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
     // STEP 5: Build MockChain and execute transaction
     println!("\nBuilding MockChain...");
-    let mut mock_chain = builder.build()?;
+    let mock_chain = builder.build()?;
 
     println!("\nBob consuming swap note (providing 15 ETH - partial fill)...");
     let note_args = Word::from([
@@ -727,12 +726,12 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     let remainder_note_inputs = vec![
         // Requested Asset (positions 0-3): 10 ETH (remaining)
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(10), // requested_asset_total (25 - 15 = 10)
         // Note Creator (positions 4-7): Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         p2id_tag_felt,
     ];
@@ -778,8 +777,8 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_expected_output_notes(vec![
-            OutputNote::Full(p2id_note.into()),
-            OutputNote::Full(remainder_note.into()),
+            OutputNote::Full(p2id_note),
+            OutputNote::Full(remainder_note),
         ])
         .extend_note_args(note_args_map)
         .build()?;
@@ -963,11 +962,11 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
 
         let note_inputs = vec![
             eth_faucet.id().prefix().into(),
-            eth_faucet.id().suffix().into(),
+            eth_faucet.id().suffix(),
             Felt::ZERO,
             Felt::new(25), // requested_asset_total
             alice.id().prefix().into(),
-            alice.id().suffix().into(),
+            alice.id().suffix(),
             NoteType::Public.into(),
             // P2ID Tag (position 7): computed tag for Alice
             p2id_tag_felt,
@@ -987,10 +986,10 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
             },
         )?;
 
-        builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+        builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
         // STEP 5: Build MockChain
-        let mut mock_chain = builder.build()?;
+        let mock_chain = builder.build()?;
 
         // Calculate expected amounts
         let offered_total = 50u64;
@@ -1036,7 +1035,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
             NoteMetadata::new(bob.id(), NoteType::Public, p2id_tag).with_attachment(attachment);
         let p2id_note = Note::new(p2id_note_assets, p2id_note_metadata, p2id_recipient);
 
-        let mut expected_notes = vec![OutputNote::Full(p2id_note.into())];
+        let mut expected_notes = vec![OutputNote::Full(p2id_note)];
 
         // Create expected remainder swap note (only if not full fill)
         if input_amount < 25 {
@@ -1053,11 +1052,11 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
 
             let remainder_note_inputs = vec![
                 eth_faucet.id().prefix().into(),
-                eth_faucet.id().suffix().into(),
+                eth_faucet.id().suffix(),
                 Felt::ZERO,
                 Felt::new(remaining_eth),
                 alice.id().prefix().into(),
-                alice.id().suffix().into(),
+                alice.id().suffix(),
                 NoteType::Public.into(),
                 p2id_tag_felt,
             ];
@@ -1093,7 +1092,7 @@ async fn swapp_note_multiple_partial_fills_test() -> anyhow::Result<()> {
                 remainder_recipient,
             );
 
-            expected_notes.push(OutputNote::Full(remainder_note.into()));
+            expected_notes.push(OutputNote::Full(remainder_note));
         }
 
         let tx_context = mock_chain
@@ -1271,12 +1270,12 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     let alice_note_inputs = vec![
         // Requested Asset: 50 USDC
         usdc_faucet.id().prefix().into(),
-        usdc_faucet.id().suffix().into(),
+        usdc_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(50), // requested_asset_total
         // Note Creator: Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         alice_p2id_tag_felt,
@@ -1297,7 +1296,7 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     )?;
     println!("Alice's swap note created: {:?}", alice_swap_note.id());
 
-    builder.add_output_note(OutputNote::Full(alice_swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(alice_swap_note.clone()));
 
     // STEP 5: Create Charlie's swap note (offers 50 USDC, wants 25 ETH)
     println!("\nCreating Charlie's swap note (offers 50 USDC for 25 ETH)...");
@@ -1308,12 +1307,12 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     let charlie_note_inputs = vec![
         // Requested Asset: 25 ETH
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total
         // Note Creator: Charlie
         charlie.id().prefix().into(),
-        charlie.id().suffix().into(),
+        charlie.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Charlie
         charlie_p2id_tag_felt,
@@ -1334,11 +1333,11 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
     )?;
     println!("Charlie's swap note created: {:?}", charlie_swap_note.id());
 
-    builder.add_output_note(OutputNote::Full(charlie_swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(charlie_swap_note.clone()));
 
     // STEP 6: Build MockChain
     println!("\nBuilding MockChain...");
-    let mut mock_chain = builder.build()?;
+    let mock_chain = builder.build()?;
 
     // STEP 7: Bob consumes both notes with input_amount = 0 (inflight swap)
     println!("\nBob consuming both swap notes with inflight logic (input_amount = 0)...");
@@ -1416,8 +1415,8 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
             &[],
         )?
         .extend_expected_output_notes(vec![
-            OutputNote::Full(alice_p2id_note.into()),
-            OutputNote::Full(charlie_p2id_note.into()),
+            OutputNote::Full(alice_p2id_note),
+            OutputNote::Full(charlie_p2id_note),
         ])
         .extend_note_args(note_args_map)
         .build()?;
@@ -1561,12 +1560,12 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
     let note_inputs = vec![
         // Requested Asset: 25 ETH
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25),
         // Note Creator: Alice
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
@@ -1586,7 +1585,7 @@ async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
         },
     )?;
 
-    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
     // STEP 6: Alice reclaims her own note
     println!("\nBuilding MockChain...");
@@ -1683,11 +1682,11 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
 
     let note_inputs = vec![
         eth_faucet.id().prefix().into(),
-        eth_faucet.id().suffix().into(),
+        eth_faucet.id().suffix(),
         Felt::ZERO,
         Felt::new(25), // requested_asset_total = 25
         alice.id().prefix().into(),
-        alice.id().suffix().into(),
+        alice.id().suffix(),
         NoteType::Public.into(),
         // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
@@ -1707,7 +1706,7 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
         },
     )?;
 
-    builder.add_output_note(OutputNote::Full(swap_note.clone().into()));
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
     let mock_chain = builder.build()?;
 
