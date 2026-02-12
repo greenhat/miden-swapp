@@ -177,7 +177,7 @@ checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -340,8 +340,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-miden"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b1806511d67e87d53dd6e6c129557e43433eadc24161de5b6811f05f449fab3"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -488,7 +489,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -659,7 +660,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -683,7 +684,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -694,7 +695,7 @@ checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -764,7 +765,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version 0.4.1",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -1054,7 +1055,7 @@ checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -1508,9 +1509,9 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
 name = "jiff"
-version = "0.2.19"
+version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d89a5b5e10d5a9ad6e5d1f4bd58225f655d6fe9767575a5e8ac5a6fe64e04495"
+checksum = "c867c356cc096b33f4981825ab281ecba3db0acefe60329f044c1789d94c6543"
 dependencies = [
  "jiff-static",
  "log",
@@ -1521,13 +1522,13 @@ dependencies = [
 
 [[package]]
 name = "jiff-static"
-version = "0.2.19"
+version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff7a39c8862fc1369215ccf0a8f12dd4598c7f6484704359f0351bd617034dbf"
+checksum = "f7946b4325269738f270bb55b3c19ab5c5040525f83fd625259422a9d25d9be5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -1697,7 +1698,7 @@ checksum = "de66c928222984aea59fcaed8ba627f388aaac3c1f57dcb05cc25495ef8faefe"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -1751,7 +1752,7 @@ dependencies = [
  "quote",
  "regex-syntax",
  "rustc_version 0.4.1",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -1812,7 +1813,8 @@ dependencies = [
 [[package]]
 name = "miden"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37ecb2c6a5ccd0834bfe0b7fb09e4d4bbf7f9228b3739cbb9dc5777df39e0989"
 dependencies = [
  "miden-base",
  "miden-base-macros",
@@ -1896,7 +1898,8 @@ dependencies = [
 [[package]]
 name = "miden-base"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "045c36f3099304b5ceddd0ec131975736797c481b74b0b21b228eb265cc2e3a9"
 dependencies = [
  "miden-base-sys",
  "miden-stdlib-sys",
@@ -1905,14 +1908,15 @@ dependencies = [
 [[package]]
 name = "miden-base-macros"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d4dc05134f25ffb821bdd77026ce04b64e55a575ec9725e7298eedde78c715d"
 dependencies = [
  "heck",
  "miden-protocol",
  "proc-macro2",
  "quote",
  "semver 1.0.27",
- "syn 2.0.114",
+ "syn 2.0.115",
  "toml 0.8.23",
  "wit-bindgen-core 0.46.0",
  "wit-bindgen-rust 0.46.0",
@@ -1921,7 +1925,8 @@ dependencies = [
 [[package]]
 name = "miden-base-sys"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b705b291476bc2abff3498da84415c7f555d7b28b754677d420d5f2fa1858815"
 dependencies = [
  "miden-field-repr",
  "miden-stdlib-sys",
@@ -2071,7 +2076,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40e95b9c7c99ed6bbf073d9e02721d812dedd2c195019c0a0e0a3dbb9cbf034"
 dependencies = [
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2095,7 +2100,8 @@ dependencies = [
 [[package]]
 name = "miden-field"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b109845d46982cea10094f196b94e19ee5602d165e47e6b64a4bd08b96b1106e"
 dependencies = [
  "miden-core",
 ]
@@ -2103,7 +2109,8 @@ dependencies = [
 [[package]]
 name = "miden-field-repr"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e942a969b5cc8bb3c578318660a821f1d0ccf26735f2a86475842337a78eba1d"
 dependencies = [
  "miden-core",
  "miden-field",
@@ -2113,11 +2120,12 @@ dependencies = [
 [[package]]
 name = "miden-field-repr-derive"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01e0942b6867f7d0e19dc34f9e0b83255d768efab844ba46118885c314c4b655"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2164,7 +2172,7 @@ dependencies = [
  "supports-color",
  "supports-hyperlinks",
  "supports-unicode",
- "syn 2.0.114",
+ "syn 2.0.115",
  "terminal_size 0.3.0",
  "textwrap",
  "thiserror",
@@ -2180,7 +2188,7 @@ checksum = "86a905f3ea65634dd4d1041a4f0fd0a3e77aa4118341d265af1a94339182222f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2266,7 +2274,7 @@ checksum = "f2dc854c1b9e49e82d3f39c5710345226e0b2a62ec0ea220c616f1f3a099cfb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2307,7 +2315,8 @@ dependencies = [
 [[package]]
 name = "miden-sdk-alloc"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c2ab739974c7abe0173915532b64b9826b8619fda7a60a45cf9f83f620b581d"
 
 [[package]]
 name = "miden-standards"
@@ -2330,7 +2339,8 @@ dependencies = [
 [[package]]
 name = "miden-stdlib-sys"
 version = "0.10.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed03f52e0c04ceabac37ddacdc286b81fc19140d462993e9e7048f757b203abb"
 dependencies = [
  "miden-field",
 ]
@@ -2374,7 +2384,7 @@ checksum = "0ee4176a0f2e7d29d2a8ee7e60b6deb14ce67a20e94c3e2c7275cdb8804e1862"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2460,8 +2470,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-codegen-masm"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7be77e89236d6446a6d9c037da8faa721760b04c3e7f70cff54de6b6c584c677"
 dependencies = [
  "anyhow",
  "inventory",
@@ -2488,8 +2499,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-compile"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "161b7dd6b62884a9ef378947b6f3c754689b7e5163890db60d03b26f274dee33"
 dependencies = [
  "anyhow",
  "clap",
@@ -2510,8 +2522,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-dialect-arith"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d4eac093db58af13c4cab74c29a8c1e29684d7a4754a666ca272c5aa0d69fcb"
 dependencies = [
  "midenc-hir",
  "paste",
@@ -2519,8 +2532,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-dialect-cf"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa8d3c1a870ec1c3c75483b9d47238deab5cf7e36f335a07b0c98f8933465497"
 dependencies = [
  "log",
  "midenc-dialect-arith",
@@ -2529,8 +2543,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-dialect-hir"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "786105882f0d5a20fa0961554e250a5b0572a327ac194a377736025906d66251"
 dependencies = [
  "log",
  "midenc-dialect-arith",
@@ -2542,8 +2557,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-dialect-scf"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08cb64a3d37f93967642a9d0e60bda05f50eebf750007cfeb62f70a769047422"
 dependencies = [
  "bitvec",
  "log",
@@ -2556,16 +2572,18 @@ dependencies = [
 
 [[package]]
 name = "midenc-dialect-ub"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28a4917eb5fe2eb01541665c3b4fc8e0d595a3ea07c974217d2b88b7a2d7b371"
 dependencies = [
  "midenc-hir",
 ]
 
 [[package]]
 name = "midenc-frontend-wasm"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a7dd6321e9a8eb804dadba21317e9b8d8576b9abf0e6409b9aa2fb003d94537"
 dependencies = [
  "addr2line 0.24.2",
  "anyhow",
@@ -2588,8 +2606,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-hir"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88d070b019821913956294bb62bb06e94c16ee6c63d349ed5be4e25b0ed6eafd"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2614,8 +2633,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-hir-analysis"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66a902f0370370565666d9116a8f090c28e7f725394751345aa1c257086eb80"
 dependencies = [
  "bitvec",
  "blink-alloc",
@@ -2625,20 +2645,22 @@ dependencies = [
 
 [[package]]
 name = "midenc-hir-macros"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82d565d9ab171e31f2fb8206536fc786ed683e7a2cb771896444fbb21c12b0cc"
 dependencies = [
  "Inflector",
  "darling",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
 name = "midenc-hir-symbol"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f662a8d413fcbbc2a98945f36f214c677663634a2d15db3a5f84ea69e77ba40"
 dependencies = [
  "Inflector",
  "hashbrown 0.15.5",
@@ -2651,8 +2673,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-hir-transform"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31b6da087c1714004a969aed848d9d87dceadb4255d623fc52e5a93f4b33c1f"
 dependencies = [
  "log",
  "midenc-hir",
@@ -2675,8 +2698,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-log"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b9a4cd10d3efc3981d240ee85c06f4bb5beec423fd2a256d666ceda76b9290a"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2687,8 +2711,9 @@ dependencies = [
 
 [[package]]
 name = "midenc-session"
-version = "0.6.0"
-source = "git+https://github.com/0xMiden/compiler?branch=next#cb4a32afdd6f1517b882a9a7f8bfa744f1c4ef6c"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "462ae8a5aeb1cbe7fe6312643333b24cfe521a4ffa6e49e0704f021869203942"
 dependencies = [
  "anyhow",
  "clap",
@@ -2736,7 +2761,7 @@ checksum = "db5b29714e950dbb20d5e6f74f9dcec4edbcc1067bb7f8ed198c097b8c1a818b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -2837,7 +2862,7 @@ checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3024,7 +3049,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3084,7 +3109,7 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3169,7 +3194,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3204,7 +3229,7 @@ checksum = "fb6dc647500e84a25a85b100e76c85b8ace114c209432dc174f20aac11d4ed6c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3235,7 +3260,7 @@ dependencies = [
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "regex",
- "syn 2.0.114",
+ "syn 2.0.115",
  "tempfile",
 ]
 
@@ -3249,7 +3274,7 @@ dependencies = [
  "itertools",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3755,7 +3780,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3779,7 +3804,7 @@ checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -3987,9 +4012,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.114"
+version = "2.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4d107df263a3013ef9b1879b0df87d706ff80f65a86ea879bd9c31f9b307c2a"
+checksum = "6e614ed320ac28113fa64972c4262d5dbc89deacdfd00c34a3e4cea073243c12"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4093,7 +4118,7 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -4159,7 +4184,7 @@ checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -4226,6 +4251,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "1.0.0+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1d7e18e3dd1d31e0ee5e863a8091ffec2fcc271636586042452b656a22c8ee1"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned 1.0.4",
+ "toml_datetime 1.0.0+spec-1.1.0",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4239,6 +4279,15 @@ name = "toml_datetime"
 version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "1.0.0+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32c2555c699578a4f59f0cc68e5116c8d7cabbd45e1409b989d4be085b53f13e"
 dependencies = [
  "serde_core",
 ]
@@ -4332,7 +4381,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -4370,7 +4419,7 @@ dependencies = [
  "prost-build",
  "prost-types",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
  "tempfile",
  "tonic-build",
 ]
@@ -4450,7 +4499,7 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -4500,9 +4549,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "trybuild"
-version = "1.0.115"
+version = "1.0.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f614c21bd3a61bad9501d75cbb7686f00386c806d7f456778432c25cf86948a"
+checksum = "47c635f0191bd3a2941013e5062667100969f8c4e9cd787c14f977265d73616e"
 dependencies = [
  "dissimilar",
  "glob",
@@ -4511,7 +4560,7 @@ dependencies = [
  "serde_json",
  "target-triple",
  "termcolor",
- "toml 0.9.12+spec-1.1.0",
+ "toml 1.0.0+spec-1.1.0",
 ]
 
 [[package]]
@@ -4740,7 +4789,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
  "wasm-bindgen-shared",
 ]
 
@@ -4939,7 +4988,7 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -4950,7 +4999,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -5269,7 +5318,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d31a19dae58475d019850e25b0170e94b16d382fbf6afee9c0e80fdc935e73e"
 dependencies = [
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -5380,7 +5429,7 @@ dependencies = [
  "heck",
  "indexmap",
  "prettyplease",
- "syn 2.0.114",
+ "syn 2.0.115",
  "wasm-metadata 0.239.0",
  "wit-bindgen-core 0.46.0",
  "wit-component 0.239.0",
@@ -5396,7 +5445,7 @@ dependencies = [
  "heck",
  "indexmap",
  "prettyplease",
- "syn 2.0.114",
+ "syn 2.0.115",
  "wasm-metadata 0.244.0",
  "wit-bindgen-core 0.51.0",
  "wit-component 0.244.0",
@@ -5412,7 +5461,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
  "wit-bindgen-core 0.46.0",
  "wit-bindgen-rust 0.46.0",
 ]
@@ -5427,7 +5476,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
  "wit-bindgen-core 0.51.0",
  "wit-bindgen-rust 0.51.0",
 ]
@@ -5542,7 +5591,7 @@ checksum = "4122cd3169e94605190e77839c9a40d40ed048d305bfdc146e7df40ab0f3e517"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.114",
+ "syn 2.0.115",
 ]
 
 [[package]]
@@ -5553,6 +5602,6 @@ checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 
 [[package]]
 name = "zmij"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4de98dfa5d5b7fef4ee834d0073d560c9ca7b6c46a71d058c48db7960f8cfaf7"
+checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"

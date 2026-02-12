@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }
+miden = "0.10.0"
 
 
 # Miden dependencies for cargo-miden build/linking

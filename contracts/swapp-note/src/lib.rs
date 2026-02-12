@@ -31,7 +31,7 @@ fn calculate_output_amount(offered_total: Felt, requested_total: Felt, input_amo
     let precision_factor = Felt::from_u32(100000);
 
     // For the better precision, we use the two different paths for the calculation
-    if offered_total.as_u64() > requested_total.as_u64() {
+    if offered_total > requested_total {
         // Case 1: offered_total > requested_total
         // Calculate ratio = (offered_total * factor) / requested_total
         // Then output = (input_amount * ratio) / factor
@@ -186,7 +186,7 @@ impl SwappNote {
         let total_input_amount = input_amount + inflight_amount;
 
         // Validate input: input_amount must not exceed requested_asset_total
-        let is_valid = if total_input_amount.as_u64() <= requested_asset_total.as_u64() {
+        let is_valid = if total_input_amount <= requested_asset_total {
             felt!(1)
         } else {
             felt!(0)
@@ -241,10 +241,6 @@ impl SwappNote {
             account,
         );
 
-        let input_amount = arg[0];
-        let inflight_amount = arg[1];
-        // Compute the total input amount( Need to recalculate this value because earlier one got of stack memory )
-        let total_input_amount = input_amount + inflight_amount;
         let total_offered_out = input_offered_out + inflight_offered_out;
 
         // Create remainder swap note in case of partial fill
@@ -252,7 +248,6 @@ impl SwappNote {
             let remainder_serial = hash_words(&[current_note_serial]).inner;
             let remainder_aux = total_offered_out;
 
-            let inputs = active_note::get_inputs();
             let requested_asset_total = inputs[3] - total_input_amount;
             let remainder_requested_asset =
                 Asset::from([inputs[0], inputs[1], inputs[2], requested_asset_total]);
@@ -269,9 +264,7 @@ impl SwappNote {
 
             let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
 
-            let inputs = active_note::get_inputs();
             let tag = inputs[7];
-
             let note_type = inputs[6];
 
             let padded_inputs = vec![
@@ -284,11 +277,6 @@ impl SwappNote {
                 note_type,
                 tag,
             ];
-
-            assert_eq(
-                remainder_serial[0],
-                Felt::from_u64_unchecked(8073041323843526112),
-            );
 
             create_swapp_note(
                 remainder_serial,

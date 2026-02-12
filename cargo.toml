@@ -10,4 +10,4 @@ exclude = [
 resolver = "2"
 
 [workspace.dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", branch = "next" }
+miden = "0.10.0"
