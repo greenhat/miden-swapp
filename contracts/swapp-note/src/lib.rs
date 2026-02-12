@@ -262,6 +262,13 @@ impl SwappNote {
             let remainder_offered_asset =
                 Asset::new(remainder_offered_asset_reversed.inner.reverse());
 
+            // let remainder_offered_asset = Asset::new(Word::from([
+            //     remainder_offered_asset_total,
+            //     offered_asset.inner[2],
+            //     offered_asset.inner[1],
+            //     offered_asset.inner[0],
+            // ]));
+
             let swapp_note_creator_id = AccountId::new(inputs[4], inputs[5]);
 
             let tag = inputs[7];

@@ -153,20 +153,6 @@ async fn main() -> Result<()> {
     println!("Syncing client state to get latest account state...");
     client.sync_state().await?;
 
-    // Get the published swap note from the client's store
-    // We need the actual Note object from the store, not the local one
-    let input_notes = client
-        .get_input_notes(miden_client::store::NoteFilter::All)
-        .await?;
-
-    let published_swap_note: Note = input_notes
-        .iter()
-        .find(|note_record| note_record.id() == swap_note.id())
-        .ok_or_else(|| anyhow::anyhow!("Swap note not found in client store"))?
-        .clone()
-        .try_into()
-        .context("Failed to convert note record to note")?;
-
     println!("Bob consuming the swap note directly (authenticated)");
     println!("Note: Bob needs 15 ETH in his vault to fulfill this partial swap");
 
@@ -193,10 +179,10 @@ async fn main() -> Result<()> {
     println!("\nCreating expected P2ID note for Alice (15 ETH)...");
 
     let p2id_serial_num = Word::from([
-        published_swap_note.recipient().serial_num()[0] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[1] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[2] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[3] + Felt::new(1),
+        swap_note.recipient().serial_num()[0] + Felt::new(1),
+        swap_note.recipient().serial_num()[1] + Felt::new(1),
+        swap_note.recipient().serial_num()[2] + Felt::new(1),
+        swap_note.recipient().serial_num()[3] + Felt::new(1),
     ]);
 
     let p2id_recipient = build_p2id_recipient(alice_id, p2id_serial_num)
@@ -222,7 +208,7 @@ async fn main() -> Result<()> {
     // Create the expected remainder swap note (contains 20 USDT, requests 10 ETH)
     println!("\nCreating expected remainder swap note (20 USDT for 10 ETH)...");
 
-    let current_note_serial = published_swap_note.recipient().serial_num();
+    let current_note_serial = swap_note.recipient().serial_num();
     let serial_num_array: [Felt; 4] = current_note_serial.into();
     // Serial number is RPO hash of the existing swap note's serial number
     let remainder_serial_num: [Felt; 4] =
@@ -260,7 +246,7 @@ async fn main() -> Result<()> {
     );
 
     // Create metadata for remainder note
-    let remainder_tag = published_swap_note.metadata().tag();
+    let remainder_tag = swap_note.metadata().tag();
 
     // Attach aux value (offered_out) to the remainder note
     let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
@@ -303,7 +289,7 @@ async fn main() -> Result<()> {
     // We pass Some(note_args) to specify the input_amount
     // For partial fill, 2 notes are created: P2ID note + remainder swap note
     let consume_request = TransactionRequestBuilder::new()
-        .input_notes(vec![(published_swap_note, Some(note_args))])
+        .input_notes(vec![(swap_note.clone(), Some(note_args))])
         .expected_future_notes(expected_future_notes)
         .expected_output_recipients(vec![p2id_recipient.clone(), remainder_recipient.clone()])
         .build()

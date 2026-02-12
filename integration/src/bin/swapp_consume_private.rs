@@ -152,20 +152,6 @@ async fn main() -> Result<()> {
     println!("Syncing client state to get latest account state...");
     client.sync_state().await?;
 
-    // Get the published swap note from the client's store
-    // We need the actual Note object from the store, not the local one
-    let input_notes = client
-        .get_input_notes(miden_client::store::NoteFilter::All)
-        .await?;
-
-    let published_swap_note: Note = input_notes
-        .iter()
-        .find(|note_record| note_record.id() == swap_note.id())
-        .ok_or_else(|| anyhow::anyhow!("Swap note not found in client store"))?
-        .clone()
-        .try_into()
-        .context("Failed to convert note record to note")?;
-
     println!("Bob consuming the swap note directly (unauthenticated)");
     println!("Note: Bob needs 25 ETH in his vault to fulfill this swap");
 
@@ -186,10 +172,10 @@ async fn main() -> Result<()> {
     println!("\nCreating expected P2ID note for Alice (25 ETH)...");
 
     let p2id_serial_num = Word::from([
-        published_swap_note.recipient().serial_num()[0] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[1] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[2] + Felt::new(1),
-        published_swap_note.recipient().serial_num()[3] + Felt::new(1),
+        swap_note.recipient().serial_num()[0] + Felt::new(1),
+        swap_note.recipient().serial_num()[1] + Felt::new(1),
+        swap_note.recipient().serial_num()[2] + Felt::new(1),
+        swap_note.recipient().serial_num()[3] + Felt::new(1),
     ]);
 
     let p2id_recipient = build_p2id_recipient(alice_id, p2id_serial_num)
@@ -261,7 +247,7 @@ async fn main() -> Result<()> {
     // The P2ID note will be created dynamically by the swap script, so we don't need to specify it
     // The client will automatically track notes created by the script
     let consume_request = TransactionRequestBuilder::new()
-        .input_notes(vec![(published_swap_note, Some(note_args))])
+        .input_notes(vec![(swap_note.clone(), Some(note_args))])
         .expected_future_notes(expected_future_notes)
         .expected_output_recipients(vec![p2id_recipient.clone()])
         .build()
