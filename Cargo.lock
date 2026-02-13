@@ -1455,6 +1455,7 @@ dependencies = [
  "miden-processor",
  "miden-protocol",
  "miden-standards",
+ "miden-swapp",
  "miden-testing",
  "rand",
  "serde",
@@ -2343,6 +2344,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed03f52e0c04ceabac37ddacdc286b81fc19140d462993e9e7048f757b203abb"
 dependencies = [
  "miden-field",
+]
+
+[[package]]
+name = "miden-swapp"
+version = "0.1.0"
+dependencies = [
+ "cargo-miden",
+ "miden-core",
+ "miden-crypto",
+ "miden-mast-package",
+ "miden-protocol",
 ]
 
 [[package]]

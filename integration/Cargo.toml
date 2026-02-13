@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 miden = { workspace = true }
+miden-swapp = { path = ".." }
 cargo-miden = "0.7.0"
 miden-client = { version = "0.13", features = ["tonic", "testing"] }
 miden-client-sqlite-store = { version = "0.13", package = "miden-client-sqlite-store" }

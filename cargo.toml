@@ -1,6 +1,5 @@
 [workspace]
 members = [
-
     "integration"
 ]
 exclude = [
@@ -11,3 +10,23 @@ resolver = "2"
 
 [workspace.dependencies]
 miden = "0.10.0"
+
+[package]
+name = "miden-swapp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+miden-protocol = { version = "0.13", default-features = false, features = ["testing"] }
+miden-mast-package = { version = "0.20", default-features = false }
+miden-core = { version = "0.20" }
+miden-crypto = { version = "0.19" }
+
+[build-dependencies]
+cargo-miden = "0.7.0"
+
+[features]
+default = ["std"]
+std = [
+    "miden-protocol/std",
+]

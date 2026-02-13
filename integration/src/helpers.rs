@@ -15,7 +15,7 @@ use miden_client::{
     crypto::FeltRng,
     keystore::FilesystemKeyStore,
     note::{Note, NoteInputs, NoteMetadata, NoteRecipient, NoteScript, NoteTag, NoteType},
-    rpc::{Endpoint, GrpcClient},
+    rpc::{Endpoint, GrpcClient, NodeRpcClient},
     utils::Deserializable,
     Client, Word,
 };
@@ -45,8 +45,7 @@ pub async fn setup_client() -> Result<ClientSetup> {
     // Initialize RPC connection
     let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
-    let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
-
+    let rpc_client: Arc<dyn NodeRpcClient> = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
     // Initialize keystore
     let project_root = std::env::current_dir().context("Failed to get current directory")?;
     let keystore_path = project_root.join("integration").join("keystore");

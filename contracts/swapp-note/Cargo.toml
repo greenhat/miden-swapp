@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
+# Mark this as its own workspace to prevent workspace inference from parent
+[workspace]
+
 [dependencies]
 miden = "0.10.0"
 
