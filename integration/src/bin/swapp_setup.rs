@@ -12,11 +12,11 @@ use miden_client::{
     transaction::TransactionRequestBuilder,
     Felt,
 };
-use miden_standards::account::auth::AuthFalcon512Rpo;
 use miden_protocol::{
     account::{AccountBuilder, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
 };
+use miden_standards::account::auth::AuthFalcon512Rpo;
 use rand::RngCore;
 use std::{path::Path, sync::Arc};
 use tokio::time::Duration;
@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
 
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Private)
+        .storage_mode(AccountStorageMode::Public)
         .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_alice.public_key().to_commitment(),
         ))
@@ -163,7 +163,7 @@ async fn main() -> Result<()> {
 
     let bob_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Private)
+        .storage_mode(AccountStorageMode::Public)
         .with_auth_component(AuthFalcon512Rpo::new(
             key_pair_bob.public_key().to_commitment(),
         ))

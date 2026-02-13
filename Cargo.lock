@@ -895,7 +895,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1455,7 +1455,7 @@ dependencies = [
  "miden-processor",
  "miden-protocol",
  "miden-standards",
- "miden-swapp",
+ "miden-swapp 0.1.0",
  "miden-testing",
  "rand",
  "serde",
@@ -1946,8 +1946,7 @@ dependencies = [
 [[package]]
 name = "miden-client"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68b256399e6f0d7ae53a592b771a1286c46ca6b45397d1c5fda6d83dbd222357"
+source = "git+https://github.com/inicio-labs/miden-client?branch=pswap-client#fbb824809658e9da368d7d2876fc56d2f57100db"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1961,6 +1960,7 @@ dependencies = [
  "miden-protocol",
  "miden-remote-prover-client",
  "miden-standards",
+ "miden-swapp 0.1.0 (git+https://github.com/inicio-labs/miden-swapp?branch=swapp-note-script%2Fmigration-13)",
  "miden-testing",
  "miden-tx",
  "miette",
@@ -1981,8 +1981,7 @@ dependencies = [
 [[package]]
 name = "miden-client-sqlite-store"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb5de50937147fafbc40dd25732e15b1a410ef938d8417294ea7fa3bad900f4a"
+source = "git+https://github.com/inicio-labs/miden-client?branch=pswap-client#fbb824809658e9da368d7d2876fc56d2f57100db"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2349,6 +2348,19 @@ dependencies = [
 [[package]]
 name = "miden-swapp"
 version = "0.1.0"
+dependencies = [
+ "cargo-miden",
+ "miden-core",
+ "miden-crypto",
+ "miden-mast-package",
+ "miden-protocol",
+ "miden-standards",
+]
+
+[[package]]
+name = "miden-swapp"
+version = "0.1.0"
+source = "git+https://github.com/inicio-labs/miden-swapp?branch=swapp-note-script%2Fmigration-13#73f738d9c17df0f488c99d7aac3b60fdf7fd828d"
 dependencies = [
  "cargo-miden",
  "miden-core",
@@ -3603,7 +3615,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4062,7 +4074,7 @@ dependencies = [
  "getrandom 0.4.1",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4977,7 +4989,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
