@@ -1863,51 +1863,24 @@ async fn swapp_note_full_fill_new_test() -> anyhow::Result<()> {
     let mut note_args_map = BTreeMap::new();
     note_args_map.insert(swap_note.id(), note_args);
 
-    // Create the expected P2ID note that will be created by the swap script
-    // This note will contain 25 ETH and be sent to Alice
-    println!("\nCreating expected P2ID note for Alice (25 ETH)...");
+    // Use PswapNote::create_swap_output_notes to build the expected P2ID note
+    println!("\nCreating expected P2ID note using PswapNote::create_swap_output_notes...");
+    let (expected_p2id_note, expected_remainder) =
+        PswapNote::create_output_notes(&swap_note, bob.id(), 25, 0)?;
 
-    let serial_num = Word::from([
-        swap_note.recipient().serial_num()[0] + Felt::new(1),
-        swap_note.recipient().serial_num()[1] + Felt::new(1),
-        swap_note.recipient().serial_num()[2] + Felt::new(1),
-        swap_note.recipient().serial_num()[3] + Felt::new(1),
-    ]);
+    assert!(
+        expected_remainder.is_none(),
+        "Full fill should not produce a remainder note"
+    );
 
-    let recipient = build_p2id_recipient(alice.id(), serial_num)?;
+    let attachment = expected_p2id_note.metadata().attachment().clone();
+    println!("Expected P2ID note created: {:?}", expected_p2id_note.id());
 
-    // Prepare the advice map for the P2ID note
-    // The key is the hash of the note creation parameters, and the value contains the full parameters
-    let tag = compute_p2id_tag_for_local_account(alice.id());
-    println!("Tag: {:?}", tag.as_u32());
-    let aux = Felt::new(25);
-    println!("recipient: {:?}", recipient.digest().to_hex());
-
-    println!("serial num: {:?}", serial_num);
-
-    let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
-
-    // Add the asset (4 Felts = 1 Word)
-    let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
-
-    let note_assets = NoteAssets::new(vec![asset.into()])?;
-
-    // In v0.13, create metadata and attach the aux value using NoteAttachment
-    // The aux value (25 ETH amount) is wrapped in a Word attachment
-    let aux_word = Word::from([aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
-    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
-    println!("Attachment word: {:?}", attachment.content());
-
-    let note_metadata =
-        NoteMetadata::new(bob.id(), NoteType::Public, tag).with_attachment(attachment.clone());
-
-    let p2id_note = Note::new(note_assets, note_metadata, recipient);
-
-    // Rebuild the transaction context with the vault tree nodes
+    // Rebuild the transaction context with the expected output note
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note)])
+        .extend_expected_output_notes(vec![OutputNote::Full(expected_p2id_note)])
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
@@ -1968,7 +1941,6 @@ async fn swapp_note_full_fill_new_test() -> anyhow::Result<()> {
     let removed_assets: Vec<Asset> = vault_delta.removed_assets().collect();
 
     assert_eq!(added_assets.len(), 1, "Bob should receive 1 asset (USDC)");
-    // assert_eq!(removed_assets.len(), 1, "Bob should spend 1 asset (ETH)");
 
     let usdc_received = match added_assets[0] {
         Asset::Fungible(f) => f,
@@ -1996,10 +1968,195 @@ async fn swapp_note_full_fill_new_test() -> anyhow::Result<()> {
     assert_eq!(eth_spent.amount(), 25, "Bob should spend 25 ETH");
     println!("✓ Bob's vault delta verified: +50 USDC, -25 ETH");
 
-    println!("\n✅ Full-fill swap test passed!");
+    println!("\n✅ Full-fill swap test passed (using PswapNote::create_swap_output_notes)!");
     println!("  - Bob provided 25 ETH");
     println!("  - Bob received 50 USDC");
     println!("  - P2ID note created for Alice with 25 ETH");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn swapp_note_partial_fill_new_test() -> anyhow::Result<()> {
+    println!("=== Test: Partial Fill Swap (Using PswapNote helpers) ===");
+    let mut builder = MockChain::builder();
+
+    // STEP 1: Create faucets
+    println!("Creating USDC and ETH faucets...");
+    let usdc_faucet =
+        builder.add_existing_basic_faucet(Auth::BasicAuth, "USDC", 1000, Some(150))?;
+    println!("USDC Faucet: {:?}", usdc_faucet.id());
+
+    let eth_faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "ETH", 1000, Some(50))?;
+    println!("ETH Faucet: {:?}", eth_faucet.id());
+
+    // STEP 2: Create wallets
+    println!("\nCreating Alice and Bob wallets...");
+    let alice = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth,
+        [FungibleAsset::new(usdc_faucet.id(), 50)?.into()],
+    )?;
+    println!("Alice: {:?} (has 50 USDC)", alice.id());
+
+    // Build basic-wallet contract package for Bob
+    println!("\nBuilding basic-wallet contract...");
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
+
+    let bob_account_cfg = AccountCreationConfig {
+        storage_slots: vec![],
+        ..Default::default()
+    };
+
+    let assets = vec![FungibleAsset::new(eth_faucet.id(), 25)?.into()];
+    let bob = create_testing_account_from_package(account_package.clone(), bob_account_cfg, assets)
+        .await?;
+    println!("Bob account created: {:?}", bob.id());
+
+    let _bob_account = builder.add_account(bob.clone());
+
+    // STEP 3: Create swap note using PswapNote::create
+    println!("\nCreating swap note (Alice offers 50 USDC for 25 ETH)...");
+
+    let offered_asset = Asset::Fungible(FungibleAsset::new(usdc_faucet.id(), 50)?);
+    let requested_asset = Asset::Fungible(FungibleAsset::new(eth_faucet.id(), 25)?);
+
+    use miden_crypto::rand::RpoRandomCoin;
+    let mut rng = RpoRandomCoin::new(Word::default());
+
+    let swap_note = PswapNote::create(
+        alice.id(),
+        offered_asset,
+        requested_asset,
+        NoteType::Public,
+        NoteAttachment::default(),
+        &mut rng,
+    )?;
+
+    println!("Swap note created: {:?}", swap_note.id());
+    println!("  ✅ Used PswapNote::create");
+
+    // Add note to genesis
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
+
+    // STEP 4: Build MockChain
+    println!("\nBuilding MockChain...");
+    let mock_chain = builder.build()?;
+
+    // STEP 5: Bob provides 15 ETH (60% partial fill)
+    println!("\nBob consuming swap note (providing 15 ETH - partial fill)...");
+    let note_args = Word::from([
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::new(15), // input_amount = 15 (partial fill)
+    ]);
+
+    let mut note_args_map = BTreeMap::new();
+    note_args_map.insert(swap_note.id(), note_args);
+
+    // STEP 6: Use PswapNote::create_swap_output_notes to build both expected output notes
+    println!("\nCreating expected output notes using PswapNote::create_swap_output_notes...");
+    let (expected_p2id_note, expected_remainder) =
+        PswapNote::create_output_notes(&swap_note, bob.id(), 15, 0)?;
+
+    assert!(
+        expected_remainder.is_some(),
+        "Partial fill should produce a remainder note"
+    );
+    let expected_remainder_note = expected_remainder.unwrap();
+
+    println!("  Expected P2ID note: {:?}", expected_p2id_note.id());
+    println!(
+        "  Expected remainder note: {:?}",
+        expected_remainder_note.id()
+    );
+
+    // Build transaction context with both expected output notes
+    let tx_context = mock_chain
+        .build_tx_context(bob.id(), &[swap_note.id()], &[])?
+        .extend_note_args(note_args_map)
+        .extend_expected_output_notes(vec![
+            OutputNote::Full(expected_p2id_note),
+            OutputNote::Full(expected_remainder_note),
+        ])
+        .build()?;
+
+    let executed_transaction = tx_context.execute().await?;
+
+    println!(
+        "Transaction executed! Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
+
+    // STEP 7: Verify results
+    println!("\n=== Verification ===");
+
+    // Should have 2 output notes: P2ID + remainder
+    let output_notes = executed_transaction.output_notes();
+    println!("Output notes created: {}", output_notes.num_notes());
+    assert_eq!(
+        output_notes.num_notes(),
+        2,
+        "Expected 2 notes: 1 P2ID + 1 remainder"
+    );
+
+    // Find and verify the P2ID note and remainder note
+    let mut p2id_found = false;
+    let mut remainder_found = false;
+
+    for idx in 0..output_notes.num_notes() {
+        let note = output_notes.get_note(idx);
+        let assets = note.assets().unwrap();
+
+        if assets.num_assets() == 1 {
+            let asset = assets.iter().next().unwrap();
+            if let Asset::Fungible(f) = asset {
+                if f.faucet_id() == eth_faucet.id() {
+                    // P2ID note: contains 15 ETH for Alice
+                    assert_eq!(f.amount(), 15, "P2ID note should contain 15 ETH");
+                    println!("✓ P2ID note verified: 15 ETH for Alice");
+                    p2id_found = true;
+                } else if f.faucet_id() == usdc_faucet.id() {
+                    // Remainder note: contains 20 USDC (50 - 30 = 20)
+                    // offered_out = (50 * 15) / 25 = 30, remaining = 50 - 30 = 20
+                    assert_eq!(f.amount(), 20, "Remainder note should contain 20 USDC");
+                    println!("✓ Remainder note verified: 20 USDC (requesting 10 ETH)");
+                    remainder_found = true;
+                }
+            }
+        }
+    }
+
+    assert!(p2id_found, "P2ID note not found in output");
+    assert!(remainder_found, "Remainder swap note not found in output");
+
+    // Verify Bob's vault delta
+    let account_delta = executed_transaction.account_delta();
+    let vault_delta = account_delta.vault();
+    let added_assets: Vec<Asset> = vault_delta.added_assets().collect();
+
+    assert_eq!(added_assets.len(), 1, "Bob should receive 1 asset");
+    let usdc_received = match added_assets[0] {
+        Asset::Fungible(f) => f,
+        _ => panic!("Expected fungible USDC asset"),
+    };
+    assert_eq!(
+        usdc_received.faucet_id(),
+        usdc_faucet.id(),
+        "Bob should receive USDC"
+    );
+    assert_eq!(usdc_received.amount(), 30, "Bob should receive 30 USDC");
+    println!("✓ Bob's vault delta verified: +30 USDC, -15 ETH");
+
+    println!("\n✅ Partial-fill swap test passed (using PswapNote helpers)!");
+    println!("  - Bob provided 15 ETH (60% of requested 25)");
+    println!("  - Bob received 30 USDC (60% of offered 50)");
+    println!("  - P2ID note: 15 ETH for Alice");
+    println!("  - Remainder note: 20 USDC still requesting 10 ETH");
+    println!("  - Both output notes built via PswapNote::create_swap_output_notes");
 
     Ok(())
 }

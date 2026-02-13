@@ -10,6 +10,7 @@ resolver = "2"
 
 [workspace.dependencies]
 miden = "0.10.0"
+miden-standards = "0.13"
 
 [package]
 name = "miden-swapp"
@@ -21,6 +22,7 @@ miden-protocol = { version = "0.13", default-features = false, features = ["test
 miden-mast-package = { version = "0.20", default-features = false }
 miden-core = { version = "0.20" }
 miden-crypto = { version = "0.19" }
+miden-standards = "0.13"
 
 [build-dependencies]
 cargo-miden = "0.7.0"
@@ -29,4 +31,5 @@ cargo-miden = "0.7.0"
 default = ["std"]
 std = [
     "miden-protocol/std",
+    "miden-standards/std",
 ]
