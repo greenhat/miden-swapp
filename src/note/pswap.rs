@@ -12,25 +12,16 @@ use miden_protocol::utils::sync::LazyLock;
 use miden_protocol::{Felt, Word, ZERO};
 use miden_standards::note::utils::build_p2id_recipient;
 
+const PSWAP_NOTE_SCRIPT_BYTES: &[u8] = include_bytes!("../../contracts/swapp-note/swapp_note.masp");
+
 // NOTE SCRIPT
 // ================================================================================================
 
 // Initialize the SWAPP note script only once by loading the embedded package
 static PSWAP_SCRIPT: LazyLock<NoteScript> = LazyLock::new(|| {
-    // Read the compiled package directly from the contracts folder
-    // Use CARGO_MANIFEST_DIR to get absolute path relative to workspace root
-    let package_path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/contracts/swapp-note/swapp_note.masp"
-    );
-    let package_bytes = std::fs::read(package_path).expect(&format!(
-        "Failed to read compiled package from {}",
-        package_path
-    ));
-
     // Deserialize the package
-    let package =
-        Package::read_from_bytes(&package_bytes).expect("Failed to deserialize swapp-note package");
+    let package = Package::read_from_bytes(PSWAP_NOTE_SCRIPT_BYTES)
+        .expect("Failed to deserialize swapp-note package");
 
     // Extract the note script from the package
     let note_program = package.unwrap_program();

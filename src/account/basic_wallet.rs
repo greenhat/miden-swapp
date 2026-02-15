@@ -12,21 +12,12 @@ use alloc::collections::BTreeSet;
 // ACCOUNT COMPONENT
 // ================================================================================================
 
+const BASIC_WALLET_COMPONENT_BYTES: &[u8] =
+    include_bytes!("../../contracts/basic-wallet/basic_wallet.masp");
+
 /// Initialize the basic-wallet account component only once by loading the embedded package.
 static BASIC_WALLET_COMPONENT: LazyLock<AccountComponent> = LazyLock::new(|| {
-    let package_path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/contracts/basic-wallet/basic_wallet.masp"
-    );
-
-    println!("Package path: {}", package_path);
-
-    let package_bytes = std::fs::read(package_path).expect(&format!(
-        "Failed to read compiled package from {}",
-        package_path
-    ));
-
-    let package = Package::read_from_bytes(&package_bytes)
+    let package = Package::read_from_bytes(BASIC_WALLET_COMPONENT_BYTES)
         .expect("Failed to deserialize basic-wallet package");
 
     let init_storage_data = InitStorageData::default();
