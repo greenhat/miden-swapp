@@ -5,6 +5,7 @@ use integration::helpers::{
 };
 
 use miden_client::{
+    account::AccountBuilder,
     note::{
         Note, NoteAssets, NoteExecutionHint, NoteInputs, NoteMetadata, NoteRecipient, NoteScript,
         NoteTag, NoteType,
@@ -2344,13 +2345,16 @@ async fn swapp_note_partial_fill_new_test() -> anyhow::Result<()> {
     // Create Bob's wallet using BasicWallet component
     println!("\nCreating Bob's basic-wallet account...");
     let assets = vec![FungibleAsset::new(eth_faucet.id(), 25)?.into()];
-    let bob = BasicWallet::create(
-        [3u8; 32],
-        assets,
-        AccountStorageMode::Public,
-        NoAuth::new(),
-        AccountType::RegularAccountUpdatableCode,
-    );
+
+    let bob = AccountBuilder::new([3u8; 32])
+        .account_type(AccountType::RegularAccountUpdatableCode)
+        .storage_mode(AccountStorageMode::Public)
+        .with_component(BasicWallet::component())
+        .with_auth_component(NoAuth::new())
+        .with_assets(assets)
+        .build_existing()
+        .expect("Failed to build basic-wallet account");
+
     println!("Bob account created: {:?}", bob.id());
 
     let _bob_account = builder.add_account(bob.clone());

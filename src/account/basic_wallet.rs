@@ -60,7 +60,6 @@ impl BasicWallet {
     /// * `storage_mode` - Account storage mode (e.g. `Public`)
     pub fn create(
         init_seed: [u8; 32],
-        assets: Vec<Asset>,
         storage_mode: AccountStorageMode,
         auth_component: impl Into<AccountComponent>,
         account_type: AccountType,
@@ -69,9 +68,8 @@ impl BasicWallet {
             .account_type(account_type)
             .storage_mode(storage_mode)
             .with_component(Self::component())
-            .with_assets(assets)
             .with_auth_component(auth_component)
-            .build_existing()
+            .build()
             .expect("Failed to build basic-wallet account")
     }
 }
