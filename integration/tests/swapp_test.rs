@@ -14,16 +14,18 @@ use miden_client::{
 };
 use miden_core::FieldElement;
 use miden_protocol::{
-    account::AccountId,
+    account::AccountType,
+    account::{AccountId, AccountStorageMode},
     asset::{Asset, FungibleAsset},
     note::{NoteAttachment, NoteAttachmentScheme},
 };
+use miden_standards::account::auth::NoAuth;
 use miden_standards::note::utils::build_p2id_recipient;
 use miden_testing::{Auth, MockChain};
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 // Import PswapNote from the workspace
-use miden_swapp::PswapNote;
+use miden_swapp::{BasicWallet, PswapNote};
 
 /// Compute the P2ID tag for a local account
 fn compute_p2id_tag_for_local_account(account_id: AccountId) -> NoteTag {
@@ -1867,11 +1869,7 @@ async fn swapp_note_inflight_cross_swap_with_spread_test() -> anyhow::Result<()>
     println!("  Assets added: {}", added_assets.len());
     println!("  Assets removed: {}", removed_assets.len());
 
-    assert_eq!(
-        removed_assets.len(),
-        0,
-        "Bob should not spend any assets"
-    );
+    assert_eq!(removed_assets.len(), 0, "Bob should not spend any assets");
 
     println!("\n=== Inflight cross-swap with spread test passed! ===");
     println!("  - Alice offered 30 ETH for 50 USDC (fully filled)");
@@ -2343,21 +2341,16 @@ async fn swapp_note_partial_fill_new_test() -> anyhow::Result<()> {
     )?;
     println!("Alice: {:?} (has 50 USDC)", alice.id());
 
-    // Build basic-wallet contract package for Bob
-    println!("\nBuilding basic-wallet contract...");
-    let account_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/basic-wallet"),
-        true,
-    )?);
-
-    let bob_account_cfg = AccountCreationConfig {
-        storage_slots: vec![],
-        ..Default::default()
-    };
-
+    // Create Bob's wallet using BasicWallet component
+    println!("\nCreating Bob's basic-wallet account...");
     let assets = vec![FungibleAsset::new(eth_faucet.id(), 25)?.into()];
-    let bob = create_testing_account_from_package(account_package.clone(), bob_account_cfg, assets)
-        .await?;
+    let bob = BasicWallet::create(
+        [3u8; 32],
+        assets,
+        AccountStorageMode::Public,
+        NoAuth::new(),
+        AccountType::RegularAccountUpdatableCode,
+    );
     println!("Bob account created: {:?}", bob.id());
 
     let _bob_account = builder.add_account(bob.clone());
