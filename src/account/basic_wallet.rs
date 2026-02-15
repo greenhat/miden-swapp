@@ -18,6 +18,9 @@ static BASIC_WALLET_COMPONENT: LazyLock<AccountComponent> = LazyLock::new(|| {
         env!("CARGO_MANIFEST_DIR"),
         "/contracts/basic-wallet/basic_wallet.masp"
     );
+
+    println!("Package path: {}", package_path);
+
     let package_bytes = std::fs::read(package_path).expect(&format!(
         "Failed to read compiled package from {}",
         package_path
@@ -84,4 +87,9 @@ mod tests {
     use miden_protocol::asset::{Asset, FungibleAsset};
 
     use super::*;
+
+    #[test]
+    fn test_basic_wallet() {
+        let component = BasicWallet::component();
+    }
 }
