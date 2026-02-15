@@ -1538,6 +1538,351 @@ async fn swapp_note_inflight_cross_swap_test() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn swapp_note_inflight_cross_swap_with_spread_test() -> anyhow::Result<()> {
+    println!("=== Test: Inflight Cross Swap With Spread (Bob Earns 5 ETH) ===");
+    println!("Alice offers 30 ETH for 50 USDC, Charlie offers 50 USDC for 25 ETH");
+    println!("Spread: 30 - 25 = 5 ETH goes to Bob as profit");
+    let mut builder = MockChain::builder();
+
+    // STEP 1: Create faucets in genesis
+    println!("Creating USDC and ETH faucets...");
+    let usdc_faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth,
+        "USDC",
+        1000,
+        Some(100), // total_issuance
+    )?;
+    println!("USDC Faucet: {:?}", usdc_faucet.id());
+
+    let eth_faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth,
+        "ETH",
+        1000,
+        Some(50), // total_issuance
+    )?;
+    println!("ETH Faucet: {:?}", eth_faucet.id());
+
+    // STEP 2: Create Alice, Charlie, and Bob accounts
+    println!("\nCreating Alice with 30 ETH (wants 50 USDC)...");
+    let alice = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth,
+        [FungibleAsset::new(eth_faucet.id(), 30)?.into()],
+    )?;
+    println!("Alice: {:?} (has 30 ETH)", alice.id());
+
+    println!("\nCreating Charlie with 50 USDC (wants 25 ETH)...");
+    let charlie = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth,
+        [FungibleAsset::new(usdc_faucet.id(), 50)?.into()],
+    )?;
+    println!("Charlie: {:?} (has 50 USDC)", charlie.id());
+
+    // Build basic-wallet contract package
+    println!("\nBuilding basic-wallet contract...");
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
+    println!("Basic-wallet contract built successfully.");
+
+    // Create Bob's custom account with 0 assets
+    println!("\nCreating Bob with 0 assets (custom account)...");
+    let bob_account_cfg = AccountCreationConfig {
+        storage_slots: vec![],
+        ..Default::default()
+    };
+
+    let bob = create_testing_account_from_package(
+        account_package.clone(),
+        bob_account_cfg,
+        vec![], // 0 assets
+    )
+    .await?;
+    println!("Bob account created: {:?}", bob.id());
+
+    builder.add_account(bob.clone())?;
+
+    // STEP 3: Build swapp-note contract
+    println!("\nBuilding swapp-note contract...");
+    let swapp_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/swapp-note"),
+        true,
+    )?);
+    println!("Swapp note contract built successfully.");
+
+    // STEP 4: Create Alice's swap note (offers 30 ETH, wants 50 USDC)
+    println!("\nCreating Alice's swap note (offers 30 ETH for 50 USDC)...");
+
+    // Compute proper P2ID tag for Alice (who will receive the output note)
+    let alice_p2id_tag_felt = compute_p2id_tag_felt(alice.id());
+
+    let alice_note_inputs = vec![
+        // Requested Asset: 50 USDC
+        usdc_faucet.id().prefix().into(),
+        usdc_faucet.id().suffix(),
+        Felt::ZERO,
+        Felt::new(50), // requested_asset_total
+        // Note Creator: Alice
+        alice.id().prefix().into(),
+        alice.id().suffix(),
+        NoteType::Public.into(),
+        // P2ID Tag (position 7): computed tag for Alice
+        alice_p2id_tag_felt,
+    ];
+
+    let alice_offered_asset = FungibleAsset::new(eth_faucet.id(), 30)?;
+    let mut alice_note_assets = NoteAssets::default();
+    alice_note_assets.add_asset(alice_offered_asset.into())?;
+
+    let alice_swap_note = create_testing_note_from_package(
+        swapp_package.clone(),
+        alice.id(),
+        NoteCreationConfig {
+            assets: alice_note_assets,
+            inputs: alice_note_inputs,
+            ..Default::default()
+        },
+    )?;
+    println!("Alice's swap note created: {:?}", alice_swap_note.id());
+
+    builder.add_output_note(OutputNote::Full(alice_swap_note.clone()));
+
+    // STEP 5: Create Charlie's swap note (offers 50 USDC, wants 25 ETH)
+    println!("\nCreating Charlie's swap note (offers 50 USDC for 25 ETH)...");
+
+    // Compute proper P2ID tag for Charlie (who will receive the output note)
+    let charlie_p2id_tag_felt = compute_p2id_tag_felt(charlie.id());
+
+    let charlie_note_inputs = vec![
+        // Requested Asset: 25 ETH
+        eth_faucet.id().prefix().into(),
+        eth_faucet.id().suffix(),
+        Felt::ZERO,
+        Felt::new(25), // requested_asset_total
+        // Note Creator: Charlie
+        charlie.id().prefix().into(),
+        charlie.id().suffix(),
+        NoteType::Public.into(),
+        // P2ID Tag (position 7): computed tag for Charlie
+        charlie_p2id_tag_felt,
+    ];
+
+    let charlie_offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
+    let mut charlie_note_assets = NoteAssets::default();
+    charlie_note_assets.add_asset(charlie_offered_asset.into())?;
+
+    let charlie_swap_note = create_testing_note_from_package(
+        swapp_package.clone(),
+        charlie.id(),
+        NoteCreationConfig {
+            assets: charlie_note_assets,
+            inputs: charlie_note_inputs,
+            ..Default::default()
+        },
+    )?;
+    println!("Charlie's swap note created: {:?}", charlie_swap_note.id());
+
+    builder.add_output_note(OutputNote::Full(charlie_swap_note.clone()));
+
+    // STEP 6: Build MockChain
+    println!("\nBuilding MockChain...");
+    let mock_chain = builder.build()?;
+
+    // STEP 7: Bob consumes both notes with input_amount = 0 (inflight swap)
+    println!("\nBob consuming both swap notes with inflight logic (input_amount = 0)...");
+
+    // Note args format (reversed Word): [consumer_tag, surplus, inflight, input]
+    // arg[0]=input (last), arg[1]=inflight (3rd), arg[2]=surplus (2nd), arg[3]=consumer_tag (1st)
+    let bob_p2id_tag_felt = compute_p2id_tag_felt(bob.id());
+
+    // Alice's note: input=0, inflight=50 USDC, surplus=5 ETH for Bob, tag=Bob's P2ID tag
+    let alice_note_args = Word::from([bob_p2id_tag_felt, Felt::new(5), Felt::new(50), Felt::ZERO]);
+    // Charlie's note: input=0, inflight=25 ETH, surplus=0, tag=0
+    let charlie_note_args = Word::from([Felt::ZERO, Felt::ZERO, Felt::new(25), Felt::ZERO]);
+
+    let mut note_args_map = BTreeMap::new();
+    note_args_map.insert(alice_swap_note.id(), alice_note_args);
+    println!("Alice note args: {:?}", alice_swap_note.serial_num());
+
+    note_args_map.insert(charlie_swap_note.id(), charlie_note_args);
+    println!("Charlie note args: {:?}", charlie_swap_note.serial_num());
+
+    // STEP 8: Create expected P2ID notes
+
+    // P2ID note for Alice (50 USDC from Charlie's note)
+    println!("\nCreating expected P2ID note for Alice (50 USDC)...");
+    let alice_p2id_serial_num = Word::from([
+        alice_swap_note.recipient().serial_num()[0] + Felt::new(1),
+        alice_swap_note.recipient().serial_num()[1] + Felt::new(1),
+        alice_swap_note.recipient().serial_num()[2] + Felt::new(1),
+        alice_swap_note.recipient().serial_num()[3] + Felt::new(1),
+    ]);
+
+    let alice_p2id_recipient = build_p2id_recipient(alice.id(), alice_p2id_serial_num)?;
+    let alice_p2id_tag = compute_p2id_tag_for_local_account(alice.id());
+    let alice_p2id_aux = Felt::new(50); // 50 USDC
+    let alice_p2id_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
+    let alice_p2id_note_assets = NoteAssets::new(vec![alice_p2id_asset.into()])?;
+
+    // Attach aux value to Alice's P2ID note
+    let aux_word = Word::from([alice_p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let alice_p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, alice_p2id_tag).with_attachment(attachment);
+    let alice_p2id_note = Note::new(
+        alice_p2id_note_assets,
+        alice_p2id_note_metadata,
+        alice_p2id_recipient,
+    );
+
+    // P2ID note for Charlie (25 ETH from Alice's note)
+    println!("\nCreating expected P2ID note for Charlie (25 ETH)...");
+    let charlie_p2id_serial_num = Word::from([
+        charlie_swap_note.recipient().serial_num()[0] + Felt::new(1),
+        charlie_swap_note.recipient().serial_num()[1] + Felt::new(1),
+        charlie_swap_note.recipient().serial_num()[2] + Felt::new(1),
+        charlie_swap_note.recipient().serial_num()[3] + Felt::new(1),
+    ]);
+
+    let charlie_p2id_recipient = build_p2id_recipient(charlie.id(), charlie_p2id_serial_num)?;
+    let charlie_p2id_tag = compute_p2id_tag_for_local_account(charlie.id());
+    let charlie_p2id_aux = Felt::new(25); // 25 ETH
+    let charlie_p2id_asset = FungibleAsset::new(eth_faucet.id(), 25)?;
+    let charlie_p2id_note_assets = NoteAssets::new(vec![charlie_p2id_asset.into()])?;
+
+    // Attach aux value to Charlie's P2ID note
+    let aux_word = Word::from([charlie_p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let charlie_p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, charlie_p2id_tag).with_attachment(attachment);
+    let charlie_p2id_note = Note::new(
+        charlie_p2id_note_assets,
+        charlie_p2id_note_metadata,
+        charlie_p2id_recipient,
+    );
+
+    // P2ID note for Bob (5 ETH spread earned from the swap)
+    println!("\nCreating expected P2ID note for Bob (5 ETH spread)...");
+    let bob_p2id_serial_num = Word::from([
+        alice_swap_note.recipient().serial_num()[0] + Felt::new(2),
+        alice_swap_note.recipient().serial_num()[1] + Felt::new(2),
+        alice_swap_note.recipient().serial_num()[2] + Felt::new(2),
+        alice_swap_note.recipient().serial_num()[3] + Felt::new(2),
+    ]);
+
+    let bob_p2id_recipient = build_p2id_recipient(bob.id(), bob_p2id_serial_num)?;
+    let bob_p2id_tag = compute_p2id_tag_for_local_account(bob.id());
+    let bob_p2id_aux = Felt::new(5); // 5 ETH spread
+    let bob_p2id_asset = FungibleAsset::new(eth_faucet.id(), 5)?;
+    let bob_p2id_note_assets = NoteAssets::new(vec![bob_p2id_asset.into()])?;
+
+    let aux_word = Word::from([bob_p2id_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+    let attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), aux_word);
+    let bob_p2id_note_metadata =
+        NoteMetadata::new(bob.id(), NoteType::Public, bob_p2id_tag).with_attachment(attachment);
+    let bob_p2id_note = Note::new(
+        bob_p2id_note_assets,
+        bob_p2id_note_metadata,
+        bob_p2id_recipient,
+    );
+
+    // Execute transaction with both notes
+    // 3 P2ID notes: Alice(50 USDC), Charlie(25 ETH), Bob(5 ETH spread)
+    let tx_context = mock_chain
+        .build_tx_context(
+            bob.id(),
+            &[alice_swap_note.id(), charlie_swap_note.id()],
+            &[],
+        )?
+        .extend_expected_output_notes(vec![
+            OutputNote::Full(alice_p2id_note),
+            OutputNote::Full(charlie_p2id_note),
+            OutputNote::Full(bob_p2id_note),
+        ])
+        .extend_note_args(note_args_map)
+        .build()?;
+
+    let executed_transaction = tx_context.execute().await?;
+    println!("Transaction executed successfully!");
+
+    println!(
+        "Cycle count: {:?}",
+        executed_transaction.measurements().note_execution
+    );
+
+    // STEP 9: Verify results
+    println!("\n=== Verification ===");
+
+    // Should have exactly 3 P2ID notes (Alice, Charlie, and Bob's spread)
+    let output_notes = executed_transaction.output_notes();
+    println!("Output notes created: {}", output_notes.num_notes());
+    assert_eq!(
+        output_notes.num_notes(),
+        3,
+        "Expected exactly 3 P2ID notes (Alice 50 USDC, Charlie 25 ETH, Bob 5 ETH)"
+    );
+
+    // Verify the three P2ID notes
+    let mut alice_p2id_found = false;
+    let mut charlie_p2id_found = false;
+    let mut bob_p2id_found = false;
+
+    for idx in 0..output_notes.num_notes() {
+        let note = output_notes.get_note(idx);
+        println!("\nNote {}: {:?}", idx, note.id());
+
+        let assets = note.assets().unwrap();
+        println!("  Number of assets: {}", assets.num_assets());
+
+        if assets.num_assets() == 1 {
+            let asset = assets.iter().next().unwrap();
+            if let Asset::Fungible(f) = asset {
+                println!("  Asset: {} of faucet {:?}", f.amount(), f.faucet_id());
+
+                if f.faucet_id() == usdc_faucet.id() && f.amount() == 50 {
+                    println!("  -> Alice's P2ID note verified: 50 USDC");
+                    alice_p2id_found = true;
+                } else if f.faucet_id() == eth_faucet.id() && f.amount() == 25 {
+                    println!("  -> Charlie's P2ID note verified: 25 ETH");
+                    charlie_p2id_found = true;
+                } else if f.faucet_id() == eth_faucet.id() && f.amount() == 5 {
+                    println!("  -> Bob's P2ID note verified: 5 ETH (spread)");
+                    bob_p2id_found = true;
+                }
+            }
+        }
+    }
+
+    assert!(alice_p2id_found, "Alice's P2ID note (50 USDC) not found");
+    assert!(charlie_p2id_found, "Charlie's P2ID note (25 ETH) not found");
+    assert!(bob_p2id_found, "Bob's P2ID note (5 ETH spread) not found");
+
+    // Check Bob's vault delta - should be zero since the 5 ETH goes to a P2ID note
+    println!("\nVerifying Bob's vault delta...");
+    let account_delta = executed_transaction.account_delta();
+    let vault_delta = account_delta.vault();
+    let added_assets: Vec<Asset> = vault_delta.added_assets().collect();
+    let removed_assets: Vec<Asset> = vault_delta.removed_assets().collect();
+
+    println!("  Assets added: {}", added_assets.len());
+    println!("  Assets removed: {}", removed_assets.len());
+
+    assert_eq!(
+        removed_assets.len(),
+        0,
+        "Bob should not spend any assets"
+    );
+
+    println!("\n=== Inflight cross-swap with spread test passed! ===");
+    println!("  - Alice offered 30 ETH for 50 USDC (fully filled)");
+    println!("  - Charlie offered 50 USDC for 25 ETH (fully filled)");
+    println!("  - Bob earned 5 ETH spread via P2ID note");
+    println!("  - 3 P2ID notes: Alice(50 USDC), Charlie(25 ETH), Bob(5 ETH)");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn swapp_note_creator_reclaim_test() -> anyhow::Result<()> {
     println!("=== Test: Creator Reclaim ===");
     let mut builder = MockChain::builder();
