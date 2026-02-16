@@ -27,6 +27,12 @@ miden-standards = "0.13"
 [build-dependencies]
 cargo-miden = "0.7.0"
 
+[dev-dependencies]
+miden-testing = "0.13.3"
+anyhow = "1"
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "macros", "fs"] }
+
+
 [features]
 default = ["std"]
 std = [

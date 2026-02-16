@@ -56,9 +56,9 @@ pub async fn setup_client() -> Result<ClientSetup> {
     let store_path = project_root.join("integration").join("store.sqlite3");
 
     let client = ClientBuilder::new()
+        .authenticator(keystore.clone())
         .rpc(rpc_client)
         .sqlite_store(store_path)
-        .authenticator(keystore.clone())
         .in_debug_mode(true.into())
         .build()
         .await
