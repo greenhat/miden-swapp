@@ -2348,7 +2348,6 @@ name = "miden-swapp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cargo-miden",
  "miden-core",
  "miden-crypto",
  "miden-mast-package",
