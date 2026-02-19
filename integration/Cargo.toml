@@ -1,0 +1,28 @@
+[package]
+name = "integration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+miden = { workspace = true }
+miden-swapp = { path = ".." }
+cargo-miden = "0.7.0"
+miden-client = { version = "0.13.1", features = ["tonic", "std"] }
+miden-client-sqlite-store = { version = "0.13.1"}
+miden-protocol = { version = "0.13", default-features = false, features = ["testing"] }
+miden-standards = { version = "0.13" }
+miden-core = { version = "0.20" }
+miden-processor = { version = "0.20" }
+miden-testing = "0.13"
+miden-mast-package = { version = "0.20", default-features = false }
+miden-crypto = { version = "0.19" }
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "macros", "fs"] }
+rand = { version = "0.9" }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[[test]]
+name = "swapp_test"
+path = "tests/swapp_test.rs"
+
