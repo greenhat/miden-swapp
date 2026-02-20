@@ -644,6 +644,11 @@ impl PswapNote {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::println;
+    use std::vec;
+    use std::vec::Vec;
+
     use miden_crypto::FieldElement;
     use miden_protocol::account::{
         AccountBuilder, AccountId, AccountIdVersion, AccountStorageMode, AccountType,

@@ -4,7 +4,6 @@ use miden_protocol::account::component::InitStorageData;
 use miden_protocol::account::{
     Account, AccountBuilder, AccountComponent, AccountStorageMode, AccountType,
 };
-use miden_protocol::asset::Asset;
 use miden_protocol::utils::sync::LazyLock;
 
 use alloc::collections::BTreeSet;
@@ -73,14 +72,10 @@ impl BasicWallet {
 
 #[cfg(test)]
 mod tests {
-    use miden_protocol::account::AccountId;
-    use miden_protocol::account::{AccountIdVersion, AccountStorageMode, AccountType};
-    use miden_protocol::asset::{Asset, FungibleAsset};
-
     use super::*;
 
     #[test]
     fn test_basic_wallet() {
-        let component = BasicWallet::component();
+        let _component = BasicWallet::component();
     }
 }
