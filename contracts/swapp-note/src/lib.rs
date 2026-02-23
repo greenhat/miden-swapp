@@ -130,9 +130,9 @@ impl SwappNote {
     /// **Note Arg (via `arg` parameter - provided by note consumer):**
     /// - Position 0: input_amount: Felt (single Felt value for amount)
     /// - Position 1: inflight_amount: Felt (single Felt value for amount)
-    /// - Position 2: surplus_amount: Felt (offered asset surplus for consumer's P2ID note)
-    /// - Position 3: consumer_p2id_tag: Felt (P2ID tag for consumer, used when surplus > 0)
-    /// arg structure: [input_amount, inflight_amount, surplus_amount, consumer_p2id_tag]
+    /// - Position 2: 0: Felt (unused)
+    /// - Position 3: 0: Felt (unused)
+    /// arg structure: [input_amount, inflight_amount, 0, 0]
     ///
     /// **Note Inputs (via `active_note::get_inputs()` - stored when note is created):**
     /// - Positions 0-3: Requested Asset Word (4 Felts)
@@ -240,52 +240,6 @@ impl SwappNote {
             aux_value,
             account,
         );
-
-        // Handle surplus: if solver specifies surplus_amount > 0, create a P2ID note
-        // for the consumer (solver) with the surplus portion of the offered asset.
-        // This allows the solver to earn the spread in cross-swap scenarios.
-        let surplus_amount = arg[2];
-        if surplus_amount > felt!(0) {
-            let surplus_asset = Asset::new(Word::from([
-                surplus_amount,
-                offered_asset.inner[1],
-                offered_asset.inner[2],
-                offered_asset.inner[3],
-            ]));
-            account.receive_asset(surplus_asset);
-
-            let consumer_p2id_tag = arg[3];
-            let consumer_serial = add_word(
-                current_note_serial,
-                Word::from([felt!(2), felt!(2), felt!(2), felt!(2)]),
-            );
-
-            let consumer_p2id_aux = surplus_amount;
-
-            let consumer_tag = Tag::from(consumer_p2id_tag);
-            let note_type = NoteType::from(inputs[6]);
-
-            let p2id_note_root_digest = Digest::from_word(Word::new([
-                Felt::from_u64_unchecked(13362761878458161062),
-                Felt::from_u64_unchecked(15090726097241769395),
-                Felt::from_u64_unchecked(444910447169617901),
-                Felt::from_u64_unchecked(3558201871398422326),
-            ]));
-
-            let consumer_recipient = Recipient::compute(
-                consumer_serial,
-                p2id_note_root_digest,
-                vec![executing_account_id.suffix, executing_account_id.prefix],
-            );
-
-            let consumer_note_idx = output_note::create(consumer_tag, note_type, consumer_recipient);
-            output_note::set_word_attachment(
-                consumer_note_idx,
-                felt!(0),
-                Word::from([consumer_p2id_aux, felt!(0), felt!(0), felt!(0)]),
-            );
-            account.move_asset_to_note(surplus_asset, consumer_note_idx);
-        }
 
         let total_offered_out = input_offered_out + inflight_offered_out;
 
