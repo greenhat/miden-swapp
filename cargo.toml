@@ -3,7 +3,8 @@ members = [
     "integration"
 ]
 exclude = [
-    "contracts/",
+    "contracts/basic-wallet",
+    "contracts/swapp-note"
 ]
 
 resolver = "2"
