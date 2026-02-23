@@ -657,6 +657,7 @@ mod tests {
     use miden_protocol::transaction::OutputNote;
 
     use super::*;
+    use std::println;
 
     #[test]
     fn test_pswap_note_creation_and_script() {

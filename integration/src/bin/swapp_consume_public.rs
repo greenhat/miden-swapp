@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
 
     // Alice creates a swap note: Offer 50 USDT for 25 ETH
     let offered_amount = 50u64;
-    let requested_amount = 25u64;
+    let requested_amount = 20u64;
 
     // Create the offered asset (50 USDT)
     let offered_asset = FungibleAsset::new(faucet1_id, offered_amount).unwrap();
