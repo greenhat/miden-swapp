@@ -5,6 +5,8 @@ extern crate alloc;
 
 pub mod account;
 pub mod note;
+pub mod tx;
 
 pub use account::BasicWallet;
 pub use note::PswapNote;
+pub use tx::InflightP2idScript;
