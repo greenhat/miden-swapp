@@ -227,7 +227,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
 
     // Add the asset (4 Felts = 1 Word)
-    let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
+    let asset = FungibleAsset::new(eth_faucet.id(), 24)?;
 
     let note_assets = NoteAssets::new(vec![asset.into()])?;
 
@@ -1829,26 +1829,46 @@ async fn swapp_note_inflight_cross_swap_with_spread_test() -> anyhow::Result<()>
     let advice_stack: Vec<Felt> = vec![
         // --- Spread note 1: 2 ETH to Bob ---
         // Word 0: serial_num
-        bob_p2id_serial_num1[0], bob_p2id_serial_num1[1],
-        bob_p2id_serial_num1[2], bob_p2id_serial_num1[3],
+        bob_p2id_serial_num1[0],
+        bob_p2id_serial_num1[1],
+        bob_p2id_serial_num1[2],
+        bob_p2id_serial_num1[3],
         // Word 1: [recipient_prefix, recipient_suffix, tag, note_type]
-        bob.id().prefix().into(), bob.id().suffix(),
-        bob_p2id_tag_felt, note_type_felt,
+        bob.id().prefix().into(),
+        bob.id().suffix(),
+        bob_p2id_tag_felt,
+        note_type_felt,
         // Word 2: [aux, 0, 0, 0]
-        bob_p2id_aux1, Felt::ZERO, Felt::ZERO, Felt::ZERO,
+        bob_p2id_aux1,
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::ZERO,
         // Word 3: asset_word
-        bob_asset_word1[0], bob_asset_word1[1], bob_asset_word1[2], bob_asset_word1[3],
+        bob_asset_word1[0],
+        bob_asset_word1[1],
+        bob_asset_word1[2],
+        bob_asset_word1[3],
         // --- Spread note 2: 3 ETH to Bob ---
         // Word 0: serial_num
-        bob_p2id_serial_num2[0], bob_p2id_serial_num2[1],
-        bob_p2id_serial_num2[2], bob_p2id_serial_num2[3],
+        bob_p2id_serial_num2[0],
+        bob_p2id_serial_num2[1],
+        bob_p2id_serial_num2[2],
+        bob_p2id_serial_num2[3],
         // Word 1: [recipient_prefix, recipient_suffix, tag, note_type]
-        bob.id().prefix().into(), bob.id().suffix(),
-        bob_p2id_tag_felt, note_type_felt,
+        bob.id().prefix().into(),
+        bob.id().suffix(),
+        bob_p2id_tag_felt,
+        note_type_felt,
         // Word 2: [aux, 0, 0, 0]
-        bob_p2id_aux2, Felt::ZERO, Felt::ZERO, Felt::ZERO,
+        bob_p2id_aux2,
+        Felt::ZERO,
+        Felt::ZERO,
+        Felt::ZERO,
         // Word 3: asset_word
-        bob_asset_word2[0], bob_asset_word2[1], bob_asset_word2[2], bob_asset_word2[3],
+        bob_asset_word2[0],
+        bob_asset_word2[1],
+        bob_asset_word2[2],
+        bob_asset_word2[3],
     ];
 
     let commitment_key: Word = Rpo256::hash_elements(&advice_stack);
@@ -1932,8 +1952,14 @@ async fn swapp_note_inflight_cross_swap_with_spread_test() -> anyhow::Result<()>
 
     assert!(alice_p2id_found, "Alice's P2ID note (50 USDC) not found");
     assert!(charlie_p2id_found, "Charlie's P2ID note (25 ETH) not found");
-    assert!(bob_p2id_2eth_found, "Bob's P2ID note (2 ETH spread) not found");
-    assert!(bob_p2id_3eth_found, "Bob's P2ID note (3 ETH spread) not found");
+    assert!(
+        bob_p2id_2eth_found,
+        "Bob's P2ID note (2 ETH spread) not found"
+    );
+    assert!(
+        bob_p2id_3eth_found,
+        "Bob's P2ID note (3 ETH spread) not found"
+    );
 
     // Check Bob's vault delta - should be zero since the 5 ETH goes to a P2ID note
     println!("\nVerifying Bob's vault delta...");
