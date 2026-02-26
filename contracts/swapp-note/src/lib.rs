@@ -194,9 +194,19 @@ impl SwappNote {
 
         assert_eq(is_valid, felt!(1));
 
+        assert_eq(offered_asset_total, felt!(10));
+        assert_eq(requested_asset_total, felt!(3));
+        assert_eq(input_amount, felt!(2));
+        // assert_eq(felt!(1), felt!(0));
+
         // Compute offered output amount proportional to input
         let input_offered_out =
             calculate_output_amount(offered_asset_total, requested_asset_total, input_amount);
+
+        assert_eq(
+            input_offered_out,
+            Felt::from_u64_unchecked(6148914689804861447),
+        );
 
         let inflight_offered_out =
             calculate_output_amount(offered_asset_total, requested_asset_total, inflight_amount);

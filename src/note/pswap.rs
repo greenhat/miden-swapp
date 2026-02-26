@@ -1785,4 +1785,113 @@ mod tests {
 
         Ok(())
     }
+
+    /// Felt-based reimplementation of calculate_output_amount (mirrors on-chain logic).
+    fn felt_calculate_output_amount(
+        offered_total: Felt,
+        requested_total: Felt,
+        input_amount: Felt,
+    ) -> Felt {
+        let PRECISION_FACTOR = Felt::new(100_000);
+
+        println!("Felt Flow");
+        if offered_total.as_int() > requested_total.as_int() {
+            let ratio = (offered_total * PRECISION_FACTOR) / requested_total;
+            println!("ratio: {}", ratio);
+            let output = (input_amount * ratio) / PRECISION_FACTOR;
+            println!("output: {}", output);
+            output
+        } else {
+            let ratio = (requested_total * PRECISION_FACTOR) / offered_total;
+            println!("ratio: {}", ratio);
+            let output = (input_amount * PRECISION_FACTOR) / ratio;
+            println!("output: {}", output);
+            output
+        }
+    }
+
+    pub fn u64_calculate_output_amount(
+        offered_total: u64,
+        requested_total: u64,
+        input_amount: u64,
+    ) -> u64 {
+        const PRECISION_FACTOR: u64 = 100_000;
+
+        println!("u64 Flow");
+        if offered_total > requested_total {
+            // Case 1: offered_total > requested_total
+            // Calculate ratio = (offered_total * factor) / requested_total
+            // Then output = (input_amount * ratio) / factor
+            let ratio = (offered_total * PRECISION_FACTOR) / requested_total;
+            println!("ratio: {}", ratio);
+            let output = (input_amount * ratio) / PRECISION_FACTOR;
+            println!("output: {}", output);
+            output
+        } else {
+            // Case 2: offered_total <= requested_total
+            // Direct calculation with precision
+            let ratio = (requested_total * PRECISION_FACTOR) / offered_total;
+            println!("ratio: {}", ratio);
+            let output = (input_amount * PRECISION_FACTOR) / ratio;
+            println!("output: {}", output);
+            output
+        }
+    }
+
+    /// Simple xorshift64 PRNG for deterministic fuzz testing without external deps.
+    struct Xorshift64(u64);
+
+    impl Xorshift64 {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        /// Generate a random u64 in [1, max] (avoids zero for division safety).
+        fn next_range(&mut self, max: u64) -> u64 {
+            (self.next() % max).saturating_add(1)
+        }
+    }
+
+    #[test]
+    fn test_calculate_output_amount_felt_vs_u64() {
+        let mut mismatches = 0u64;
+        let mut total = 0u64;
+
+        // --- Edge cases ---
+        let edge_cases: Vec<(u64, u64, u64)> = vec![(10, 3, 2)];
+
+        // Test edge cases
+        for (offered, requested, input) in &edge_cases {
+            total += 1;
+            println!(
+                "Edge case: offered={}, requested={}, input={}",
+                offered, requested, input
+            );
+            let rust_result = u64_calculate_output_amount(*offered, *requested, *input);
+            let felt_result = felt_calculate_output_amount(
+                Felt::new(*offered),
+                Felt::new(*requested),
+                Felt::new(*input),
+            );
+            let felt_as_u64 = felt_result.as_int();
+
+            if rust_result != felt_as_u64 {
+                mismatches += 1;
+                println!(
+                    "MISMATCH: offered={}, requested={}, input={} => u64={}, felt={}",
+                    offered, requested, input, rust_result, felt_as_u64
+                );
+            }
+        }
+
+        println!(
+            "\nEdge cases: {}/{} matched ({} mismatches)",
+            total - mismatches,
+            total,
+            mismatches
+        );
+    }
 }

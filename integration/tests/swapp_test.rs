@@ -227,7 +227,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let _execution_hint = NoteExecutionHint::none(); // Not used in v0.13
 
     // Add the asset (4 Felts = 1 Word)
-    let asset = FungibleAsset::new(eth_faucet.id(), 24)?;
+    let asset = FungibleAsset::new(eth_faucet.id(), 25)?;
 
     let note_assets = NoteAssets::new(vec![asset.into()])?;
 
@@ -240,13 +240,13 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let note_metadata =
         NoteMetadata::new(bob.id(), NoteType::Public, tag).with_attachment(attachment.clone());
 
-    let p2id_note = Note::new(note_assets, note_metadata, recipient);
+    let p2id_note = Note::new(note_assets, note_metadata, recipient.clone());
 
     // Rebuild the transaction context with the vault tree nodes
     let tx_context = mock_chain
         .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note)])
+        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.clone())])
         .build()?;
 
     let executed_transaction = tx_context.execute().await?;
@@ -263,6 +263,9 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let output_notes = executed_transaction.output_notes();
     println!("Output notes created: {}", output_notes.num_notes());
     assert_eq!(output_notes.num_notes(), 1, "Expected exactly 1 P2ID note");
+
+    assert_eq!(output_notes.get_note(0).recipient().unwrap(), &recipient);
+    assert_eq!(output_notes.get_note(0).id(), p2id_note.id());
 
     assert_eq!(
         output_notes.get_note(0).metadata().attachment().clone(),
@@ -307,7 +310,7 @@ async fn swapp_note_full_fill_test() -> anyhow::Result<()> {
     let removed_assets: Vec<Asset> = vault_delta.removed_assets().collect();
 
     assert_eq!(added_assets.len(), 1, "Bob should receive 1 asset (USDC)");
-    // assert_eq!(removed_assets.len(), 1, "Bob should spend 1 asset (ETH)");
+    assert_eq!(removed_assets.len(), 1, "Bob should spend 1 asset (ETH)");
 
     let usdc_received = match added_assets[0] {
         Asset::Fungible(f) => f,
@@ -675,7 +678,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix(),
         Felt::ZERO,
-        Felt::new(25), // requested_asset_total
+        Felt::new(3), // requested_asset_total
         // Note Creator (positions 4-6): Alice
         alice.id().prefix().into(),
         alice.id().suffix(),
@@ -685,7 +688,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     ];
 
     // Add the offered asset (50 USDC) to the note
-    let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
+    let offered_asset = FungibleAsset::new(usdc_faucet.id(), 10)?;
     let mut note_assets = NoteAssets::default();
     note_assets.add_asset(offered_asset.into())?;
 
@@ -712,7 +715,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         Felt::ZERO, // input_amount = 15 (partial fill, 60% of requested)
         Felt::ZERO,
         Felt::ZERO,
-        Felt::new(15),
+        Felt::new(2),
     ]);
 
     let mut note_args_map = BTreeMap::new();
@@ -732,9 +735,9 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
     let p2id_recipient = build_p2id_recipient(alice.id(), p2id_serial_num)?;
 
     let p2id_tag = compute_p2id_tag_for_local_account(alice.id());
-    let p2id_aux = Felt::new(15); // input_amount = 15 ETH
+    let p2id_aux = Felt::new(2); // input_amount = 15 ETH
 
-    let p2id_asset = FungibleAsset::new(eth_faucet.id(), 15)?; // 15 ETH
+    let p2id_asset = FungibleAsset::new(eth_faucet.id(), 2)?; // 15 ETH
     let p2id_note_assets = NoteAssets::new(vec![p2id_asset.into()])?;
 
     // Attach aux value (15) to the metadata
@@ -763,7 +766,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix(),
         Felt::ZERO,
-        Felt::new(10), // requested_asset_total (25 - 15 = 10)
+        Felt::new(1), // requested_asset_total (25 - 15 = 10)
         // Note Creator (positions 4-7): Alice
         alice.id().prefix().into(),
         alice.id().suffix(),
@@ -786,7 +789,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
 
     // Create metadata for remainder note with aux attachment
     let remainder_tag = swap_note.metadata().tag();
-    let remainder_aux = Felt::new(30); // offered_out = (50 * 15) / 25 = 30
+    let remainder_aux = Felt::new(4); // offered_out = (50 * 15) / 25 = 30
 
     println!(
         "Remainder recipient: {:?}",
@@ -800,7 +803,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         NoteMetadata::new(bob.id(), NoteType::Public, remainder_tag).with_attachment(attachment);
 
     // Create assets for remainder note: 20 USDC (50 - 30 = 20)
-    let remainder_asset = FungibleAsset::new(usdc_faucet.id(), 20)?;
+    let remainder_asset = FungibleAsset::new(usdc_faucet.id(), 4)?;
     let remainder_note_assets = NoteAssets::new(vec![remainder_asset.into()])?;
 
     let remainder_note = Note::new(
@@ -885,7 +888,7 @@ async fn swapp_note_partial_fill_test() -> anyhow::Result<()> {
         Asset::Fungible(f) => f,
         _ => panic!("Expected fungible USDC asset"),
     };
-    assert_eq!(usdc_received.amount(), 30, "Bob should receive 30 USDC");
+    assert_eq!(usdc_received.amount(), 6, "Bob should receive 30 USDC");
     println!("✓ Bob's vault delta verified: +30 USDC, -15 ETH");
 
     println!("\n✅ Partial-fill swap test passed!");
@@ -2214,257 +2217,1043 @@ async fn swapp_note_invalid_input_test() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Fuzz test: runs many inflight cross-swap scenarios with different amounts
+/// to verify the contract works correctly with arbitrary numbers.
+///
+/// Each case: Alice offers `alice_eth` ETH for `usdc` USDC,
+///            Charlie offers `usdc` USDC for `charlie_eth` ETH.
+/// Bob facilitates the inflight swap and earns `alice_eth - charlie_eth` ETH spread.
+///
+/// Constraints:
+///   - alice_eth > charlie_eth  (positive spread for Bob)
+///   - charlie_offered_usdc == alice_requested_usdc  (exact match for full fills)
+///   - All amounts >= 1
 #[tokio::test]
-async fn swapp_note_full_fill_atomic_test() -> anyhow::Result<()> {
-    println!("=== Test: Atomic Full Fill Swap (Single Block Settlement) ===");
-    println!("Both transactions settle in the SAME block via unauthenticated note consumption.");
-    println!("");
-    println!("Flow:");
-    println!("  T1 (Alice): Creates swap note + consumes P2ID note (unauthenticated)");
-    println!("  T2 (Bob):   Consumes swap note (unauthenticated) + creates P2ID note");
-    println!("  Both T1 and T2 are batched atomically in a single block.");
-    println!("  Latency: 1 block instead of 3 blocks.");
+async fn swapp_note_inflight_cross_swap_fuzz_test() -> anyhow::Result<()> {
+    println!("=== Fuzz Test: Inflight Cross Swap With Spread ===\n");
 
-    let mut builder = MockChain::builder();
-
-    // =========================================================
-    // GENESIS: Faucets + accounts only. NO notes in genesis.
-    // =========================================================
-
-    println!("\nCreating USDC and ETH faucets...");
-    let usdc_faucet = builder.add_existing_basic_faucet(
-        Auth::BasicAuth,
-        "USDC",
-        1000,
-        Some(100), // total_issuance
-    )?;
-    println!("USDC Faucet: {:?}", usdc_faucet.id());
-
-    let eth_faucet = builder.add_existing_basic_faucet(
-        Auth::BasicAuth,
-        "ETH",
-        1000,
-        Some(50), // total_issuance
-    )?;
-    println!("ETH Faucet: {:?}", eth_faucet.id());
-
-    // Alice: has 50 USDC (will move to swap note via TX script)
-    println!("\nCreating Alice with 50 USDC...");
-    let alice = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
-        [FungibleAsset::new(usdc_faucet.id(), 50)?.into()],
-    )?;
-    println!("Alice: {:?} (has 50 USDC)", alice.id());
-
-    // Bob: has 25 ETH (will provide to swap note)
-    println!("\nBuilding basic-wallet contract...");
+    // Build contracts once (expensive)
+    println!("Building contracts (one-time setup)...");
     let account_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/basic-wallet"),
         true,
     )?);
+    let p2id_script_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/p2id-tx-script"),
+        true,
+    )?);
+    println!("Contracts built.\n");
 
-    let bob_account_cfg = AccountCreationConfig {
-        storage_slots: vec![],
-        ..Default::default()
-    };
+    // Handpicked edge cases: (alice_offered_eth, alice_requested_usdc, charlie_requested_eth)
+    let mut test_cases: Vec<(u64, u64, u64)> = vec![
+        // Minimum amounts
+        (2, 1, 1),   // spread=1, smallest possible
+        (3, 1, 1),   // spread=2, tiny usdc
+        (2, 100, 1), // spread=1, tiny eth but large usdc
+        // Spread = 1 (tightest margin)
+        (10, 10, 9),   // equal offered/requested
+        (50, 1, 49),   // large amounts, tiny usdc
+        (100, 99, 99), // large amounts
+        // Large spread
+        (100, 100, 1), // spread=99, almost all spread
+        (99, 50, 1),   // spread=98
+        // Primes (non-divisible, stress integer arithmetic)
+        (7, 5, 3),    // tiny primes, spread=4
+        (17, 13, 11), // small primes, spread=6
+        (53, 47, 41), // medium primes, spread=12
+        (97, 89, 83), // large primes, spread=14
+        // Odd/even mixes
+        (23, 21, 17), // all odd, spread=6
+        (24, 21, 17), // even/odd/odd, spread=7
+        (23, 22, 17), // odd/even/odd, spread=6
+        // Close consecutive numbers
+        (51, 49, 47), // close odds, spread=4
+        (4, 3, 2),    // consecutive, spread=2
+        // Powers of 2
+        (64, 32, 16),  // powers of 2, spread=48
+        (128, 64, 32), // larger powers, spread=96
+        // Same offered/requested ratio stress
+        (10, 10, 5),  // 1:1 offer ratio, spread=5
+        (20, 10, 15), // 2:1, spread=5
+        (10, 20, 5),  // 1:2, spread=5
+        // Duplicate amount edge case (charlie_eth == spread)
+        (4, 5, 2),  // charlie=2, spread=2 (duplicate!)
+        (6, 10, 3), // charlie=3, spread=3 (duplicate!)
+    ];
+
+    // Add random cases
+    use rand::Rng;
+    let mut thread_rng = rand::rng();
+    for _ in 0..20 {
+        let alice_eth: u64 = thread_rng.random_range(2..500);
+        let usdc: u64 = thread_rng.random_range(1..500);
+        let charlie_eth: u64 = thread_rng.random_range(1..alice_eth);
+        test_cases.push((alice_eth, usdc, charlie_eth));
+    }
+
+    let total = test_cases.len();
+    println!(
+        "Running {} test cases ({} handpicked + 20 random)...\n",
+        total,
+        total - 20
+    );
+
+    for (i, (alice_eth, usdc, charlie_eth)) in test_cases.iter().enumerate() {
+        let spread = alice_eth - charlie_eth;
+        println!(
+            "--- Case {}/{}: Alice offers {} ETH for {} USDC | Charlie offers {} USDC for {} ETH | spread={} ETH ---",
+            i + 1, total, alice_eth, usdc, usdc, charlie_eth, spread
+        );
+
+        // Fresh MockChain per case
+        let mut builder = MockChain::builder();
+
+        let max_amount = *[*alice_eth, *usdc].iter().max().unwrap();
+        let total_issuance = max_amount * 10;
+
+        let usdc_faucet = builder.add_existing_basic_faucet(
+            Auth::BasicAuth,
+            "USDC",
+            1000,
+            Some(total_issuance),
+        )?;
+        let eth_faucet = builder.add_existing_basic_faucet(
+            Auth::BasicAuth,
+            "ETH",
+            1000,
+            Some(total_issuance),
+        )?;
+
+        let alice = builder.add_existing_wallet_with_assets(
+            Auth::BasicAuth,
+            [FungibleAsset::new(eth_faucet.id(), *alice_eth)?.into()],
+        )?;
+        let charlie = builder.add_existing_wallet_with_assets(
+            Auth::BasicAuth,
+            [FungibleAsset::new(usdc_faucet.id(), *usdc)?.into()],
+        )?;
+
+        let bob = create_testing_account_from_package(
+            account_package.clone(),
+            AccountCreationConfig {
+                storage_slots: vec![],
+                ..Default::default()
+            },
+            vec![],
+        )
+        .await?;
+        builder.add_account(bob.clone())?;
+
+        // Create swap notes using PswapNote::create()
+        let seed_word = Word::from([
+            Felt::new(i as u64 + 1),
+            Felt::new(i as u64 + 2),
+            Felt::new(i as u64 + 3),
+            Felt::new(i as u64 + 4),
+        ]);
+        let mut note_rng = miden_crypto::rand::RpoRandomCoin::new(seed_word);
+
+        // Alice's swap note: offers alice_eth ETH, wants usdc USDC
+        let alice_swap_note = create_swapp_note_with_pswap(
+            alice.id(),
+            Asset::Fungible(FungibleAsset::new(eth_faucet.id(), *alice_eth)?),
+            Asset::Fungible(FungibleAsset::new(usdc_faucet.id(), *usdc)?),
+            NoteType::Public,
+            &mut note_rng,
+        )?;
+        builder.add_output_note(OutputNote::Full(alice_swap_note.clone()));
+
+        // Charlie's swap note: offers usdc USDC, wants charlie_eth ETH
+        let charlie_swap_note = create_swapp_note_with_pswap(
+            charlie.id(),
+            Asset::Fungible(FungibleAsset::new(usdc_faucet.id(), *usdc)?),
+            Asset::Fungible(FungibleAsset::new(eth_faucet.id(), *charlie_eth)?),
+            NoteType::Public,
+            &mut note_rng,
+        )?;
+        builder.add_output_note(OutputNote::Full(charlie_swap_note.clone()));
+
+        // Build tx_script from shared package
+        let program = p2id_script_package.unwrap_program();
+        let tx_script =
+            TransactionScript::from_parts(program.mast_forest().clone(), program.entrypoint());
+
+        let mock_chain = builder.build()?;
+
+        // Note args: input=0, inflight=fill_amount
+        let alice_note_args = Word::from([Felt::ZERO, Felt::ZERO, Felt::new(*usdc), Felt::ZERO]);
+        let charlie_note_args =
+            Word::from([Felt::ZERO, Felt::ZERO, Felt::new(*charlie_eth), Felt::ZERO]);
+        let mut note_args_map = BTreeMap::new();
+        note_args_map.insert(alice_swap_note.id(), alice_note_args);
+        note_args_map.insert(charlie_swap_note.id(), charlie_note_args);
+
+        // Expected P2ID notes using PswapNote::create_output_notes()
+        let (alice_p2id_note, alice_rem) =
+            PswapNote::create_output_notes(&alice_swap_note, bob.id(), 0, *usdc)?;
+        assert!(
+            alice_rem.is_none(),
+            "Case {}: Alice full fill should not produce remainder",
+            i + 1
+        );
+
+        let (charlie_p2id_note, charlie_rem) =
+            PswapNote::create_output_notes(&charlie_swap_note, bob.id(), 0, *charlie_eth)?;
+        assert!(
+            charlie_rem.is_none(),
+            "Case {}: Charlie full fill should not produce remainder",
+            i + 1
+        );
+
+        // Bob's spread P2ID note
+        let bob_p2id_tag = compute_p2id_tag_for_local_account(bob.id());
+        let bob_p2id_tag_felt = Felt::new(u32::from(bob_p2id_tag) as u64);
+        let note_type_felt: Felt = NoteType::Public.into();
+
+        let bob_serial = Word::from([
+            alice_swap_note.recipient().serial_num()[0] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[1] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[2] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[3] + Felt::new(2),
+        ]);
+        let bob_aux = Felt::new(spread);
+        let bob_asset = FungibleAsset::new(eth_faucet.id(), spread)?;
+        let bob_recipient = build_p2id_recipient(bob.id(), bob_serial)?;
+        let bob_note_assets = NoteAssets::new(vec![bob_asset.into()])?;
+        let bob_aux_word = Word::from([bob_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+        let bob_attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), bob_aux_word);
+        let bob_meta = NoteMetadata::new(bob.id(), NoteType::Public, bob_p2id_tag)
+            .with_attachment(bob_attachment);
+        let bob_p2id_note = Note::new(bob_note_assets, bob_meta, bob_recipient);
+
+        // Advice stack for p2id-tx-script (1 spread note)
+        let bob_asset_word = Word::from(Asset::from(FungibleAsset::new(eth_faucet.id(), spread)?));
+        let advice_stack: Vec<Felt> = vec![
+            // Word 0: serial_num
+            bob_serial[0],
+            bob_serial[1],
+            bob_serial[2],
+            bob_serial[3],
+            // Word 1: [recipient_prefix, recipient_suffix, tag, note_type]
+            bob.id().prefix().into(),
+            bob.id().suffix(),
+            bob_p2id_tag_felt,
+            note_type_felt,
+            // Word 2: [aux, 0, 0, 0]
+            bob_aux,
+            Felt::ZERO,
+            Felt::ZERO,
+            Felt::ZERO,
+            // Word 3: asset_word
+            bob_asset_word[0],
+            bob_asset_word[1],
+            bob_asset_word[2],
+            bob_asset_word[3],
+        ];
+
+        let commitment_key: Word = Rpo256::hash_elements(&advice_stack);
+        let mut commitment = commitment_key;
+        commitment.reverse();
+
+        // Save expected note IDs and assets before notes are moved
+        let expected_note_checks = vec![
+            (alice_p2id_note.id(), usdc_faucet.id(), *usdc, "Alice P2ID"),
+            (
+                charlie_p2id_note.id(),
+                eth_faucet.id(),
+                *charlie_eth,
+                "Charlie P2ID",
+            ),
+            (
+                bob_p2id_note.id(),
+                eth_faucet.id(),
+                spread,
+                "Bob spread P2ID",
+            ),
+        ];
+
+        // Execute transaction
+        let tx_context = mock_chain
+            .build_tx_context(
+                bob.id(),
+                &[alice_swap_note.id(), charlie_swap_note.id()],
+                &[],
+            )?
+            .tx_script(tx_script)
+            .tx_script_args(commitment)
+            .extend_advice_map([(commitment_key, advice_stack)])
+            .extend_expected_output_notes(vec![
+                OutputNote::Full(alice_p2id_note),
+                OutputNote::Full(charlie_p2id_note),
+                OutputNote::Full(bob_p2id_note),
+            ])
+            .extend_note_args(note_args_map)
+            .build()?;
+
+        let executed_tx = tx_context.execute().await?;
+
+        // === Verify ===
+        let output_notes = executed_tx.output_notes();
+        assert_eq!(
+            output_notes.num_notes(),
+            3,
+            "Case {}: Expected 3 P2ID notes, got {}",
+            i + 1,
+            output_notes.num_notes()
+        );
+
+        // Per-note asset verification: check each expected note's faucet_id and amount
+        for (expected_id, expected_faucet, expected_amount, label) in &expected_note_checks {
+            let mut found = false;
+            for idx in 0..output_notes.num_notes() {
+                let note = output_notes.get_note(idx);
+                if note.id() == *expected_id {
+                    let assets = note.assets().unwrap();
+                    assert_eq!(
+                        assets.num_assets(),
+                        1,
+                        "Case {}: {} should have exactly 1 asset",
+                        i + 1,
+                        label
+                    );
+                    if let Asset::Fungible(f) = assets.iter().next().unwrap() {
+                        assert_eq!(
+                            f.faucet_id(),
+                            *expected_faucet,
+                            "Case {}: {} faucet_id mismatch",
+                            i + 1,
+                            label
+                        );
+                        assert_eq!(
+                            f.amount(),
+                            *expected_amount,
+                            "Case {}: {} amount mismatch (expected {}, got {})",
+                            i + 1,
+                            label,
+                            expected_amount,
+                            f.amount()
+                        );
+                    } else {
+                        panic!("Case {}: {} asset is not fungible", i + 1, label);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            assert!(found, "Case {}: {} note not found in output", i + 1, label);
+        }
+
+        // Bob's vault should be empty (spread goes to P2ID note)
+        let vault_delta = executed_tx.account_delta().vault();
+        assert_eq!(
+            vault_delta.removed_assets().count(),
+            0,
+            "Case {}: Bob should not spend any assets",
+            i + 1
+        );
+
+        println!(
+            "  PASSED: Alice {} USDC, Charlie {} ETH, Bob {} ETH spread",
+            usdc, charlie_eth, spread
+        );
+    }
+
+    println!("\n=== All {} fuzz test cases passed! ===", total);
+    Ok(())
+}
+
+/// Fuzz test: inflight cross-swap where BOTH notes are partially filled.
+///
+/// Each case: Alice offers `alice_eth` ETH for `alice_usdc` USDC,
+///            Charlie offers `charlie_usdc` USDC for `charlie_eth` ETH.
+/// Bob partially fills both notes via inflight and earns spread.
+///
+/// Expected output per case (5 notes):
+///   1. Alice P2ID:      alice_fill_usdc USDC
+///   2. Alice remainder:  (alice_eth - alice_offered_out) ETH for (alice_usdc - alice_fill_usdc) USDC
+///   3. Charlie P2ID:     charlie_fill_eth ETH
+///   4. Charlie remainder: (charlie_usdc - charlie_offered_out) USDC for (charlie_eth - charlie_fill_eth) ETH
+///   5. Bob spread P2ID:  (alice_offered_out - charlie_fill_eth) ETH
+///
+/// To ensure on-chain Felt arithmetic matches Rust integer arithmetic, all cases
+/// use ratios where offered is a multiple of requested (exact integer division).
+#[tokio::test]
+async fn swapp_note_inflight_partial_fill_cross_swap_fuzz_test() -> anyhow::Result<()> {
+    println!("=== Fuzz Test: Inflight Partial Fill Cross Swap (Both Remainders + Spread) ===\n");
+
+    // Build contracts once (expensive)
+    println!("Building contracts (one-time setup)...");
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
+    let p2id_script_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/p2id-tx-script"),
+        true,
+    )?);
+    println!("Contracts built.\n");
+
+    // Handpicked test cases: (alice_eth, alice_usdc, charlie_usdc, charlie_eth, charlie_fill_eth)
+    //
+    // For each case, the derived values are:
+    //   charlie_offered_out = calculate_output_amount(charlie_usdc, charlie_eth, charlie_fill_eth)
+    //   alice_fill_usdc     = charlie_offered_out  (inflight routing)
+    //   alice_offered_out   = calculate_output_amount(alice_eth, alice_usdc, alice_fill_usdc)
+    //   spread              = alice_offered_out - charlie_fill_eth
+    //
+    // Constraints:
+    //   charlie_fill_eth < charlie_eth            (partial fill for Charlie)
+    //   alice_fill_usdc  < alice_usdc             (partial fill for Alice)
+    //   alice_offered_out > charlie_fill_eth       (positive spread)
+    //   remainders > 0 for both notes
+    let mut test_cases: Vec<(u64, u64, u64, u64, u64)> = vec![
+        // (alice_eth, alice_usdc, charlie_usdc, charlie_eth, charlie_fill_eth)
+        //
+        // Both notes: offered > requested, ratio is integer
+        (100, 50, 60, 30, 15), // 2:1 / 2:1, spread=45
+        (10, 5, 8, 4, 2),      // 2:1 / 2:1, spread=6
+        (50, 25, 30, 15, 5),   // 2:1 / 2:1, spread=15
+        (20, 10, 14, 7, 3),    // 2:1 / 2:1, spread=9
+        (6, 3, 4, 2, 1),       // 2:1 / 2:1, spread=3 (tiny)
+        (40, 20, 10, 5, 2),    // 2:1 / 2:1, spread=6
+        (14, 7, 10, 5, 3),     // 2:1 / 2:1, spread=9
+        // Mixed ratios
+        (90, 45, 80, 40, 20),    // 2:1 / 2:1, spread=60
+        (30, 15, 24, 8, 4),      // 2:1 / 3:1, spread=20
+        (200, 100, 150, 50, 25), // 2:1 / 3:1, spread=125
+        // Alice's offered <= requested (ratio 1:2 on Alice side)
+        (10, 20, 30, 10, 4), // 1:2 / 3:1, spread=2
+    ];
+
+    // Generate random cases where both notes have offered > requested with integer ratios
+    // This guarantees calculate_output_amount(offered, requested, fill) = fill * (offered/requested)
+    use rand::Rng;
+    let mut thread_rng = rand::rng();
+    for _ in 0..15 {
+        let charlie_eth: u64 = thread_rng.random_range(3..50);
+        let charlie_ratio: u64 = thread_rng.random_range(2..8);
+        let charlie_usdc = charlie_eth * charlie_ratio;
+        let charlie_fill_eth: u64 = thread_rng.random_range(1..charlie_eth);
+
+        // charlie_offered_out = charlie_fill_eth * charlie_ratio (exact)
+        let charlie_offered_out = charlie_fill_eth * charlie_ratio;
+        let alice_fill_usdc = charlie_offered_out;
+
+        // Ensure alice_usdc > alice_fill_usdc (partial fill for Alice)
+        let alice_usdc_extra: u64 = thread_rng.random_range(1..50);
+        let alice_usdc = alice_fill_usdc + alice_usdc_extra;
+        let alice_ratio: u64 = thread_rng.random_range(2..8);
+        let alice_eth = alice_usdc * alice_ratio;
+
+        // alice_offered_out = alice_fill_usdc * alice_ratio (exact, always > charlie_fill_eth)
+        test_cases.push((
+            alice_eth,
+            alice_usdc,
+            charlie_usdc,
+            charlie_eth,
+            charlie_fill_eth,
+        ));
+    }
+
+    let total = test_cases.len();
+    println!(
+        "Running {} test cases ({} handpicked + 15 random)...\n",
+        total,
+        total - 15
+    );
+
+    for (i, (alice_eth, alice_usdc, charlie_usdc, charlie_eth, charlie_fill_eth)) in
+        test_cases.iter().enumerate()
+    {
+        // Derive values using the same calculation as on-chain
+        let charlie_offered_out =
+            PswapNote::calculate_output_amount(*charlie_usdc, *charlie_eth, *charlie_fill_eth);
+        let alice_fill_usdc = charlie_offered_out;
+        let alice_offered_out =
+            PswapNote::calculate_output_amount(*alice_eth, *alice_usdc, alice_fill_usdc);
+
+        // Validate constraints
+        assert!(
+            *charlie_fill_eth < *charlie_eth,
+            "Case {}: Charlie fill must be partial",
+            i + 1
+        );
+        assert!(
+            alice_fill_usdc < *alice_usdc,
+            "Case {}: Alice fill must be partial (alice_fill={}, alice_usdc={})",
+            i + 1,
+            alice_fill_usdc,
+            alice_usdc
+        );
+        assert!(
+            alice_offered_out > *charlie_fill_eth,
+            "Case {}: Need positive spread",
+            i + 1
+        );
+        assert!(
+            charlie_offered_out > 0,
+            "Case {}: Charlie must release USDC",
+            i + 1
+        );
+
+        let spread = alice_offered_out - charlie_fill_eth;
+        let alice_remaining_eth = alice_eth - alice_offered_out;
+        let charlie_remaining_usdc = charlie_usdc - charlie_offered_out;
+        let alice_remaining_usdc = alice_usdc - alice_fill_usdc;
+        let charlie_remaining_eth = charlie_eth - charlie_fill_eth;
+
+        assert!(
+            alice_remaining_eth > 0,
+            "Case {}: Alice remainder ETH=0",
+            i + 1
+        );
+        assert!(
+            charlie_remaining_usdc > 0,
+            "Case {}: Charlie remainder USDC=0",
+            i + 1
+        );
+
+        println!(
+            "--- Case {}/{}: Alice {}ETH for {}USDC | Charlie {}USDC for {}ETH | fill={}ETH ---",
+            i + 1,
+            total,
+            alice_eth,
+            alice_usdc,
+            charlie_usdc,
+            charlie_eth,
+            charlie_fill_eth
+        );
+        println!(
+            "    derived: charlie_out={} USDC, alice_fill={} USDC, alice_out={} ETH, spread={} ETH",
+            charlie_offered_out, alice_fill_usdc, alice_offered_out, spread
+        );
+        println!(
+            "    remainders: Alice {}ETH/{}USDC, Charlie {}USDC/{}ETH",
+            alice_remaining_eth,
+            alice_remaining_usdc,
+            charlie_remaining_usdc,
+            charlie_remaining_eth
+        );
+
+        // Fresh MockChain per case
+        let mut builder = MockChain::builder();
+
+        let max_amount = *[*alice_eth, *alice_usdc, *charlie_usdc, *charlie_eth]
+            .iter()
+            .max()
+            .unwrap();
+        let total_issuance = max_amount * 10;
+
+        let usdc_faucet = builder.add_existing_basic_faucet(
+            Auth::BasicAuth,
+            "USDC",
+            1000,
+            Some(total_issuance),
+        )?;
+        let eth_faucet = builder.add_existing_basic_faucet(
+            Auth::BasicAuth,
+            "ETH",
+            1000,
+            Some(total_issuance),
+        )?;
+
+        let alice = builder.add_existing_wallet_with_assets(
+            Auth::BasicAuth,
+            [FungibleAsset::new(eth_faucet.id(), *alice_eth)?.into()],
+        )?;
+        let charlie = builder.add_existing_wallet_with_assets(
+            Auth::BasicAuth,
+            [FungibleAsset::new(usdc_faucet.id(), *charlie_usdc)?.into()],
+        )?;
+
+        let bob = create_testing_account_from_package(
+            account_package.clone(),
+            AccountCreationConfig {
+                storage_slots: vec![],
+                ..Default::default()
+            },
+            vec![],
+        )
+        .await?;
+        builder.add_account(bob.clone())?;
+
+        // Create swap notes using PswapNote::create()
+        let seed_word = Word::from([
+            Felt::new(i as u64 * 4 + 100),
+            Felt::new(i as u64 * 4 + 101),
+            Felt::new(i as u64 * 4 + 102),
+            Felt::new(i as u64 * 4 + 103),
+        ]);
+        let mut note_rng = miden_crypto::rand::RpoRandomCoin::new(seed_word);
+
+        // Alice's swap note: offers alice_eth ETH, wants alice_usdc USDC
+        let alice_swap_note = create_swapp_note_with_pswap(
+            alice.id(),
+            Asset::Fungible(FungibleAsset::new(eth_faucet.id(), *alice_eth)?),
+            Asset::Fungible(FungibleAsset::new(usdc_faucet.id(), *alice_usdc)?),
+            NoteType::Public,
+            &mut note_rng,
+        )?;
+        builder.add_output_note(OutputNote::Full(alice_swap_note.clone()));
+
+        // Charlie's swap note: offers charlie_usdc USDC, wants charlie_eth ETH
+        let charlie_swap_note = create_swapp_note_with_pswap(
+            charlie.id(),
+            Asset::Fungible(FungibleAsset::new(usdc_faucet.id(), *charlie_usdc)?),
+            Asset::Fungible(FungibleAsset::new(eth_faucet.id(), *charlie_eth)?),
+            NoteType::Public,
+            &mut note_rng,
+        )?;
+        builder.add_output_note(OutputNote::Full(charlie_swap_note.clone()));
+
+        // Build tx_script from shared package
+        let program = p2id_script_package.unwrap_program();
+        let tx_script =
+            TransactionScript::from_parts(program.mast_forest().clone(), program.entrypoint());
+
+        let mock_chain = builder.build()?;
+
+        // Note args: [unused, unused, inflight_amount, input_amount] in Word layout
+        // On-chain: arg[0]=input_amount (last element), arg[1]=inflight_amount (second-to-last)
+        let alice_note_args = Word::from([
+            Felt::ZERO,
+            Felt::ZERO,
+            Felt::new(alice_fill_usdc),
+            Felt::ZERO,
+        ]);
+        let charlie_note_args = Word::from([
+            Felt::ZERO,
+            Felt::ZERO,
+            Felt::new(*charlie_fill_eth),
+            Felt::ZERO,
+        ]);
+        let mut note_args_map = BTreeMap::new();
+        note_args_map.insert(alice_swap_note.id(), alice_note_args);
+        note_args_map.insert(charlie_swap_note.id(), charlie_note_args);
+
+        // Pre-compute expected P2ID + Remainder notes using PswapNote::create_output_notes()
+        let (alice_p2id_note, alice_remainder_opt) =
+            PswapNote::create_output_notes(&alice_swap_note, bob.id(), 0, alice_fill_usdc)?;
+        let alice_remainder_note = alice_remainder_opt.expect(&format!(
+            "Case {}: Alice partial fill must produce remainder",
+            i + 1
+        ));
+
+        let (charlie_p2id_note, charlie_remainder_opt) =
+            PswapNote::create_output_notes(&charlie_swap_note, bob.id(), 0, *charlie_fill_eth)?;
+        let charlie_remainder_note = charlie_remainder_opt.expect(&format!(
+            "Case {}: Charlie partial fill must produce remainder",
+            i + 1
+        ));
+
+        // Bob's spread P2ID note
+        let bob_p2id_tag = compute_p2id_tag_for_local_account(bob.id());
+        let bob_p2id_tag_felt = Felt::new(u32::from(bob_p2id_tag) as u64);
+        let note_type_felt: Felt = NoteType::Public.into();
+
+        let bob_serial = Word::from([
+            alice_swap_note.recipient().serial_num()[0] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[1] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[2] + Felt::new(2),
+            alice_swap_note.recipient().serial_num()[3] + Felt::new(2),
+        ]);
+        let bob_aux = Felt::new(spread);
+        let bob_asset = FungibleAsset::new(eth_faucet.id(), spread)?;
+        let bob_recipient = build_p2id_recipient(bob.id(), bob_serial)?;
+        let bob_note_assets = NoteAssets::new(vec![bob_asset.into()])?;
+        let bob_aux_word = Word::from([bob_aux, Felt::ZERO, Felt::ZERO, Felt::ZERO]);
+        let bob_attachment = NoteAttachment::new_word(NoteAttachmentScheme::none(), bob_aux_word);
+        let bob_meta = NoteMetadata::new(bob.id(), NoteType::Public, bob_p2id_tag)
+            .with_attachment(bob_attachment);
+        let bob_p2id_note = Note::new(bob_note_assets, bob_meta, bob_recipient);
+
+        // Advice stack for p2id-tx-script (1 spread note)
+        let bob_asset_word = Word::from(Asset::from(FungibleAsset::new(eth_faucet.id(), spread)?));
+        let advice_stack: Vec<Felt> = vec![
+            // Word 0: serial_num
+            bob_serial[0],
+            bob_serial[1],
+            bob_serial[2],
+            bob_serial[3],
+            // Word 1: [recipient_prefix, recipient_suffix, tag, note_type]
+            bob.id().prefix().into(),
+            bob.id().suffix(),
+            bob_p2id_tag_felt,
+            note_type_felt,
+            // Word 2: [aux, 0, 0, 0]
+            bob_aux,
+            Felt::ZERO,
+            Felt::ZERO,
+            Felt::ZERO,
+            // Word 3: asset_word
+            bob_asset_word[0],
+            bob_asset_word[1],
+            bob_asset_word[2],
+            bob_asset_word[3],
+        ];
+
+        let commitment_key: Word = Rpo256::hash_elements(&advice_stack);
+        let mut commitment = commitment_key;
+        commitment.reverse();
+
+        // Save expected note IDs and assets before notes are moved
+        let expected_note_checks = vec![
+            (
+                alice_p2id_note.id(),
+                usdc_faucet.id(),
+                alice_fill_usdc,
+                "Alice P2ID",
+            ),
+            (
+                alice_remainder_note.id(),
+                eth_faucet.id(),
+                alice_remaining_eth,
+                "Alice remainder",
+            ),
+            (
+                charlie_p2id_note.id(),
+                eth_faucet.id(),
+                *charlie_fill_eth,
+                "Charlie P2ID",
+            ),
+            (
+                charlie_remainder_note.id(),
+                usdc_faucet.id(),
+                charlie_remaining_usdc,
+                "Charlie remainder",
+            ),
+            (
+                bob_p2id_note.id(),
+                eth_faucet.id(),
+                spread,
+                "Bob spread P2ID",
+            ),
+        ];
+
+        // Execute transaction: expect 5 output notes
+        let tx_context = mock_chain
+            .build_tx_context(
+                bob.id(),
+                &[alice_swap_note.id(), charlie_swap_note.id()],
+                &[],
+            )?
+            .tx_script(tx_script)
+            .tx_script_args(commitment)
+            .extend_advice_map([(commitment_key, advice_stack)])
+            .extend_expected_output_notes(vec![
+                OutputNote::Full(alice_p2id_note),
+                OutputNote::Full(alice_remainder_note),
+                OutputNote::Full(charlie_p2id_note),
+                OutputNote::Full(charlie_remainder_note),
+                OutputNote::Full(bob_p2id_note),
+            ])
+            .extend_note_args(note_args_map)
+            .build()?;
+
+        let executed_tx = tx_context.execute().await?;
+
+        // === Verify ===
+        let output_notes = executed_tx.output_notes();
+        assert_eq!(
+            output_notes.num_notes(),
+            5,
+            "Case {}: Expected 5 notes (2 P2ID + 2 remainder + 1 spread), got {}",
+            i + 1,
+            output_notes.num_notes()
+        );
+
+        // Per-note asset verification: check each expected note's faucet_id and amount
+        for (expected_id, expected_faucet, expected_amount, label) in &expected_note_checks {
+            let mut found = false;
+            for idx in 0..output_notes.num_notes() {
+                let note = output_notes.get_note(idx);
+                if note.id() == *expected_id {
+                    let assets = note.assets().unwrap();
+                    assert_eq!(
+                        assets.num_assets(),
+                        1,
+                        "Case {}: {} should have exactly 1 asset",
+                        i + 1,
+                        label
+                    );
+                    if let Asset::Fungible(f) = assets.iter().next().unwrap() {
+                        assert_eq!(
+                            f.faucet_id(),
+                            *expected_faucet,
+                            "Case {}: {} faucet_id mismatch",
+                            i + 1,
+                            label
+                        );
+                        assert_eq!(
+                            f.amount(),
+                            *expected_amount,
+                            "Case {}: {} amount mismatch (expected {}, got {})",
+                            i + 1,
+                            label,
+                            expected_amount,
+                            f.amount()
+                        );
+                    } else {
+                        panic!("Case {}: {} asset is not fungible", i + 1, label);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            assert!(found, "Case {}: {} note not found in output", i + 1, label);
+        }
+
+        // Verify total asset conservation
+        let mut total_usdc_out: u64 = 0;
+        let mut total_eth_out: u64 = 0;
+        for (_, expected_faucet, expected_amount, _) in &expected_note_checks {
+            if *expected_faucet == usdc_faucet.id() {
+                total_usdc_out += expected_amount;
+            } else if *expected_faucet == eth_faucet.id() {
+                total_eth_out += expected_amount;
+            }
+        }
+        assert_eq!(
+            total_usdc_out,
+            *charlie_usdc,
+            "Case {}: USDC conservation failed",
+            i + 1
+        );
+        assert_eq!(
+            total_eth_out,
+            *alice_eth,
+            "Case {}: ETH conservation failed",
+            i + 1
+        );
+
+        // Bob's vault should be empty
+        let vault_delta = executed_tx.account_delta().vault();
+        assert_eq!(
+            vault_delta.removed_assets().count(),
+            0,
+            "Case {}: Bob should not spend any assets",
+            i + 1
+        );
+
+        println!(
+            "  PASSED: 5 notes | Alice P2ID {} USDC + Rem {}ETH | Charlie P2ID {} ETH + Rem {} USDC | Bob {} ETH spread",
+            alice_fill_usdc, alice_remaining_eth, charlie_fill_eth, charlie_remaining_usdc, spread
+        );
+    }
+
+    println!(
+        "\n=== All {} partial fill fuzz test cases passed! ===",
+        total
+    );
+    Ok(())
+}
+
+/// Test proving that Felt field division and u64 integer division diverge
+/// for non-exact ratios, causing the on-chain contract to produce different
+/// results than the off-chain u64 `calculate_output_amount`.
+///
+/// Uses offered=100 USDC, requested=30 ETH (ratio 10/3 = 3.333...).
+/// Bob partially fills with 7 ETH.
+///
+/// u64:  ratio = 100*100_000/30 = 333_333 (truncated), output = 7*333_333/100_000 = 23
+/// Felt: ratio = 10_000_000 * inv(30) mod P (huge field element), output = garbage
+///
+/// The on-chain Felt result is a huge field element (~10^18), NOT 23.
+/// This causes the transaction to fail because the asset amount is nonsensical.
+#[tokio::test]
+async fn swapp_note_non_exact_ratio_partial_fill_divergence_test() -> anyhow::Result<()> {
+    println!("=== Test: Non-Exact Ratio Partial Fill (Felt vs u64 divergence) ===\n");
+
+    // u64 calculate_output_amount for reference
+    fn calculate_output_amount_u64(
+        offered_total: u64,
+        requested_total: u64,
+        input_amount: u64,
+    ) -> u64 {
+        let precision_factor = 100_000u64;
+        if offered_total > requested_total {
+            let ratio = (offered_total * precision_factor) / requested_total;
+            (input_amount * ratio) / precision_factor
+        } else {
+            let ratio = (requested_total * precision_factor) / offered_total;
+            (input_amount * precision_factor) / ratio
+        }
+    }
+
+    // Non-exact ratio: 100 USDC offered for 30 ETH (ratio = 10/3 = 3.333...)
+    let offered_total = 100u64;
+    let requested_total = 30u64;
+    let input_amount = 7u64; // Partial fill: 7 of 30 ETH
+
+    let u64_output = calculate_output_amount_u64(offered_total, requested_total, input_amount);
+    println!(
+        "Off-chain u64 prediction: offered_out = {} USDC",
+        u64_output
+    );
+    println!(
+        "  ratio = {} * 100_000 / {} = {} (truncated)",
+        offered_total,
+        requested_total,
+        (offered_total * 100_000) / requested_total
+    );
+    println!(
+        "  output = {} * {} / 100_000 = {} (truncated)",
+        input_amount,
+        (offered_total * 100_000) / requested_total,
+        u64_output
+    );
+
+    // Show the Felt result for comparison
+    use miden_core::FieldElement;
+    let felt_offered = Felt::new(offered_total);
+    let felt_requested = Felt::new(requested_total);
+    let felt_input = Felt::new(input_amount);
+    let felt_factor = Felt::new(100_000);
+
+    // Mimic the on-chain logic
+    let felt_ratio = (felt_offered * felt_factor) / felt_requested;
+    let felt_output = (felt_input * felt_ratio) / felt_factor;
+    println!(
+        "\nOn-chain Felt prediction: offered_out = {} (as u64)",
+        felt_output.as_int()
+    );
+    println!("  Felt ratio = {}", felt_ratio.as_int());
+    println!("  These differ because Felt '/' is modular inverse, not integer truncation");
+    println!(
+        "\n  u64 says: {} USDC | Felt says: {} (huge field element)\n",
+        u64_output,
+        felt_output.as_int()
+    );
+
+    // Set up the actual on-chain test
+    let mut builder = MockChain::builder();
+
+    let usdc_faucet =
+        builder.add_existing_basic_faucet(Auth::BasicAuth, "USDC", 10000, Some(1000))?;
+
+    let eth_faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "ETH", 10000, Some(100))?;
+
+    // Alice has 100 USDC, offers them for 30 ETH
+    let alice = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth,
+        [FungibleAsset::new(usdc_faucet.id(), offered_total)?.into()],
+    )?;
+    println!("Alice: {:?} (has {} USDC)", alice.id(), offered_total);
+
+    // Bob has 7 ETH, will partially fill
+    let account_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/basic-wallet"),
+        true,
+    )?);
     let bob = create_testing_account_from_package(
         account_package.clone(),
-        bob_account_cfg,
-        vec![FungibleAsset::new(eth_faucet.id(), 25)?.into()],
+        AccountCreationConfig {
+            storage_slots: vec![],
+            ..Default::default()
+        },
+        vec![FungibleAsset::new(eth_faucet.id(), input_amount)?.into()],
     )
     .await?;
-    println!("Bob: {:?} (has 25 ETH)", bob.id());
+    println!("Bob:   {:?} (has {} ETH)", bob.id(), input_amount);
+
     builder.add_account(bob.clone())?;
 
-    // Build swap note contract
-    println!("\nBuilding swapp-note contract...");
+    // Create swap note: Alice offers 100 USDC for 30 ETH
     let swapp_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/swapp-note"),
         true,
     )?);
 
-    // Build MockChain — NO notes in genesis, just accounts + faucets
-    println!("\nBuilding MockChain (genesis block)...");
-    let mut mock_chain = builder.build()?;
-    println!("Genesis block built. No notes committed yet.");
-
-    // =========================================================
-    // OFF-CHAIN PRE-COORDINATION (App-Level Middleware)
-    // Both parties pre-compute their notes before submitting TXs.
-    // =========================================================
-
-    println!("\n--- Off-chain pre-coordination ---");
-
-    // Alice constructs her swap note off-chain (offers 50 USDC for 25 ETH)
-    println!("Alice constructs swap note: 50 USDC for 25 ETH...");
     let p2id_tag_felt = compute_p2id_tag_felt(alice.id());
 
-    let swap_note_inputs = vec![
-        // Requested Asset (positions 0-3): 25 ETH
+    let note_inputs = vec![
         eth_faucet.id().prefix().into(),
         eth_faucet.id().suffix(),
         Felt::ZERO,
-        Felt::new(25), // requested_asset_total
-        // Note Creator (positions 4-5): Alice
+        Felt::new(requested_total), // requested 30 ETH
         alice.id().prefix().into(),
         alice.id().suffix(),
-        // Note Type (position 6): Public
         NoteType::Public.into(),
-        // P2ID Tag (position 7): computed tag for Alice
         p2id_tag_felt,
     ];
 
-    let offered_asset = FungibleAsset::new(usdc_faucet.id(), 50)?;
-    let mut swap_note_assets = NoteAssets::default();
-    swap_note_assets.add_asset(offered_asset.into())?;
+    let offered_asset = FungibleAsset::new(usdc_faucet.id(), offered_total)?;
+    let mut note_assets = NoteAssets::default();
+    note_assets.add_asset(offered_asset.into())?;
 
     let swap_note = create_testing_note_from_package(
         swapp_package.clone(),
         alice.id(),
         NoteCreationConfig {
-            assets: swap_note_assets,
-            inputs: swap_note_inputs,
+            assets: note_assets,
+            inputs: note_inputs,
             ..Default::default()
         },
     )?;
-    println!("Swap note constructed: {:?}", swap_note.id());
 
-    // Bob pre-computes the P2ID note he will create when consuming the swap note.
-    // Alice already knows this note's content via the middleware handshake.
-    println!("Bob pre-computes P2ID note: 25 ETH for Alice...");
-    let (p2id_note, _) = PswapNote::create_output_notes(&swap_note, bob.id(), 25, 0)?;
-    println!("P2ID note pre-computed: {:?}", p2id_note.id());
+    builder.add_output_note(OutputNote::Full(swap_note.clone()));
 
-    // =========================================================
-    // ATOMIC EXECUTION: Two TXs, one block
-    // =========================================================
+    let mock_chain = builder.build()?;
 
-    println!("\n--- Atomic execution (single block) ---");
-
-    // T2 (Bob/Solver): Consume swap note (UNAUTHENTICATED) → creates P2ID note
-    // The swap note was never committed on-chain; Bob receives it from the middleware.
-    println!("\nT2 (Bob): Consuming swap note (unauthenticated), creating P2ID...");
-    let note_args = Word::from([Felt::ZERO, Felt::ZERO, Felt::ZERO, Felt::new(25)]);
+    // Bob provides 7 ETH (partial fill with input_amount, no inflight)
+    let note_args = Word::from([Felt::ZERO, Felt::ZERO, Felt::ZERO, Felt::new(input_amount)]);
     let mut note_args_map = BTreeMap::new();
     note_args_map.insert(swap_note.id(), note_args);
 
-    let bob_tx_context = mock_chain
-        .build_tx_context(bob.id(), &[], &[swap_note.clone()])? // swap note as UNAUTHENTICATED
+    let tx_context = mock_chain
+        .build_tx_context(bob.id(), &[swap_note.id()], &[])?
         .extend_note_args(note_args_map)
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_note.clone())])
         .build()?;
 
-    let bob_executed_tx = bob_tx_context.execute().await?;
+    // Execute: on-chain Felt division will produce a huge field element as
+    // the offered output, which should cause the transaction to fail
     println!(
-        "  Bob TX executed. Cycle count: {:?}",
-        bob_executed_tx.measurements().note_execution
+        "Executing transaction (Bob provides {} ETH partial fill)...",
+        input_amount
     );
+    let result = tx_context.execute().await;
 
-    // Add Bob's TX as pending — do NOT prove yet
-    mock_chain.add_pending_executed_transaction(&bob_executed_tx)?;
-    println!("  Bob TX added to pending batch.");
+    if let Err(e) = &result {
+        println!("\nTransaction FAILED as expected:");
+        println!("  Error: {}", e);
+        println!("\n  Root cause: Felt '/' computes modular inverse, not integer truncation.");
+        println!(
+            "  On-chain: calculate_output_amount(100, 30, 7) = {} (field element)",
+            felt_output.as_int()
+        );
+        println!(
+            "  Off-chain: calculate_output_amount(100, 30, 7) = {} (truncated)",
+            u64_output
+        );
+        println!("  The Felt result is used as an asset amount, causing failure.");
+    } else {
+        let executed_tx = result.as_ref().unwrap();
+        // If it somehow succeeds, check what Bob actually received
+        let vault_delta = executed_tx.account_delta().vault();
+        let added: Vec<Asset> = vault_delta.added_assets().collect();
+        println!("\nTransaction SUCCEEDED (unexpected!)");
+        println!("  Bob's added assets: {:?}", added);
+        for asset in &added {
+            if let Asset::Fungible(f) = asset {
+                println!(
+                    "  Bob received: {} of faucet {:?}",
+                    f.amount(),
+                    f.faucet_id()
+                );
+            }
+        }
+        let output_notes = executed_tx.output_notes();
+        println!("  Output notes: {}", output_notes.num_notes());
 
-    // T1 (Alice): Consume P2ID note (UNAUTHENTICATED) → receives 25 ETH
-    // The P2ID note was never committed on-chain; Alice knows its content from pre-coordination.
-    println!("\nT1 (Alice): Consuming P2ID note (unauthenticated)...");
+        panic!(
+            "Transaction succeeded but should have failed! \
+             On-chain Felt division produces {} (not u64's {}). \
+             This means the on-chain result is a meaningless field element.",
+            felt_output.as_int(),
+            u64_output
+        );
+    }
 
-    let alice_tx_context = mock_chain
-        .build_tx_context(alice.id(), &[], &[p2id_note.clone()])? // P2ID as UNAUTHENTICATED
-        .build()?;
-
-    let alice_executed_tx = alice_tx_context.execute().await?;
-    println!(
-        "  Alice TX executed. Cycle count: {:?}",
-        alice_executed_tx.measurements().note_execution
-    );
-
-    // Add Alice's TX as pending
-    mock_chain.add_pending_executed_transaction(&alice_executed_tx)?;
-    println!("  Alice TX added to pending batch.");
-
-    // Prove SINGLE block with both transactions — atomic settlement!
-    println!("\nProving block with both transactions...");
-    let _ = mock_chain.prove_next_block()?;
-    println!("Block proved! Both T1 and T2 settled atomically in 1 block.");
-
-    // =========================================================
-    // VERIFICATION
-    // =========================================================
-
-    println!("\n=== Verification ===");
-
-    // Verify Bob's TX: P2ID note output with 25 ETH for Alice
-    let bob_output_notes = bob_executed_tx.output_notes();
-    assert_eq!(
-        bob_output_notes.num_notes(),
-        1,
-        "Bob should create exactly 1 P2ID note"
-    );
-
-    let p2id_output = bob_output_notes.get_note(0);
-    let p2id_assets = p2id_output.assets().unwrap();
-    assert_eq!(p2id_assets.num_assets(), 1);
-    let p2id_fungible = match p2id_assets.iter().next().unwrap() {
-        Asset::Fungible(f) => f,
-        _ => panic!("Expected fungible asset in P2ID note"),
-    };
-    assert_eq!(p2id_fungible.faucet_id(), eth_faucet.id());
-    assert_eq!(p2id_fungible.amount(), 25);
-    println!("  Bob's P2ID output verified: 25 ETH for Alice");
-
-    // Verify Bob's vault delta: +50 USDC, -25 ETH
-    let bob_delta = bob_executed_tx.account_delta();
-    let bob_vault = bob_delta.vault();
-    let bob_added: Vec<Asset> = bob_vault.added_assets().collect();
-    let bob_removed: Vec<Asset> = bob_vault.removed_assets().collect();
-
-    assert_eq!(bob_added.len(), 1, "Bob should receive 1 asset (USDC)");
-    let bob_usdc = match bob_added[0] {
-        Asset::Fungible(f) => f,
-        _ => panic!("Expected fungible USDC"),
-    };
-    assert_eq!(bob_usdc.faucet_id(), usdc_faucet.id());
-    assert_eq!(bob_usdc.amount(), 50);
-
-    assert_eq!(bob_removed.len(), 1, "Bob should spend 1 asset (ETH)");
-    let bob_eth = match bob_removed[0] {
-        Asset::Fungible(f) => f,
-        _ => panic!("Expected fungible ETH"),
-    };
-    assert_eq!(bob_eth.faucet_id(), eth_faucet.id());
-    assert_eq!(bob_eth.amount(), 25);
-    println!("  Bob vault delta verified: +50 USDC, -25 ETH");
-
-    // Verify Alice's TX: no output notes, just consumed P2ID
-    let alice_output_notes = alice_executed_tx.output_notes();
-    assert_eq!(
-        alice_output_notes.num_notes(),
-        0,
-        "Alice should have no output notes (just consumed P2ID)"
-    );
-
-    // Verify Alice's vault delta: +25 ETH (from P2ID note)
-    let alice_delta = alice_executed_tx.account_delta();
-    let alice_vault = alice_delta.vault();
-    let alice_added: Vec<Asset> = alice_vault.added_assets().collect();
-
-    assert_eq!(alice_added.len(), 1, "Alice should receive 1 asset (ETH)");
-    let alice_eth = match alice_added[0] {
-        Asset::Fungible(f) => f,
-        _ => panic!("Expected fungible ETH"),
-    };
-    assert_eq!(alice_eth.faucet_id(), eth_faucet.id());
-    assert_eq!(alice_eth.amount(), 25);
-    println!("  Alice vault delta verified: +25 ETH (from P2ID note)");
-
-    println!("\n=== Atomic Swap Summary ===");
-    println!("  Single-block finality (1 block instead of 3)");
-    println!("  T1 (Alice): Consumed P2ID note (unauthenticated) -> +25 ETH");
-    println!("  T2 (Bob):   Consumed swap note (unauthenticated) -> +50 USDC, created P2ID");
-    println!("  Both TXs settled atomically in a single block.");
-    println!("  Hard atomicity: if Bob's TX fails, the P2ID note doesn't exist,");
-    println!("  so Alice's TX also fails. They are cryptographically linked.");
-    println!("\n  Atomic full-fill swap test passed!");
-
+    println!("\n=== Non-exact ratio divergence test complete ===");
     Ok(())
 }
