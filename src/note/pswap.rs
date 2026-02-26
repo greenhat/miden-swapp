@@ -1878,13 +1878,11 @@ mod tests {
             );
             let felt_as_u64 = felt_result.as_int();
 
-            if rust_result != felt_as_u64 {
-                mismatches += 1;
-                println!(
-                    "MISMATCH: offered={}, requested={}, input={} => u64={}, felt={}",
-                    offered, requested, input, rust_result, felt_as_u64
-                );
-            }
+            assert_eq!(
+                rust_result, felt_as_u64,
+                "MISMATCH: offered={}, requested={}, input={} => u64={}, felt={}",
+                offered, requested, input, rust_result, felt_as_u64
+            );
         }
 
         println!(
